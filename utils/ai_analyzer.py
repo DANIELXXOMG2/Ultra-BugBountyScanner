@@ -1,19 +1,20 @@
-"""Módulo de análisis con IA usando Google Gemini.
+"""Módulo para análisis de resultados usando Google Gemini."""
 
-Este módulo proporciona funcionalidad para generar resúmenes inteligentes
-de los resultados de escaneo usando la API de Google Gemini.
-"""
+from pathlib import Path
+from typing import TYPE_CHECKING, Optional
 
-import logging
-from typing import Optional
+from utils.logger import UltraLogger
 
-try:
+if TYPE_CHECKING:
     import google.generativeai as genai
-except ImportError:
-    genai = None
+else:
+    try:
+        import google.generativeai as genai
+    except ImportError:
+        genai = None
 
 # Configurar logger
-logger = logging.getLogger(__name__)
+logger = UltraLogger("ai_analyzer")
 
 
 def get_gemini_summary(api_key: str, scan_results: str) -> Optional[str]:
@@ -31,9 +32,9 @@ def get_gemini_summary(api_key: str, scan_results: str) -> Optional[str]:
         ImportError: Si google-generativeai no está instalado
     """
     # Verificar que la librería esté disponible
-    if genai is None:
+    if not TYPE_CHECKING and genai is None:
         logger.error("google-generativeai no está instalado. Instala con: pip install google-generativeai")
-        raise ImportError("google-generativeai no está disponible")
+        return None
 
     # Validación de entrada
     if not api_key or not api_key.strip():
@@ -70,7 +71,7 @@ def get_gemini_summary(api_key: str, scan_results: str) -> Optional[str]:
         # Verificar que la respuesta sea válida
         if response and response.text:
             logger.info("Resumen de IA generado exitosamente")
-            return response.text.strip()
+            return str(response.text).strip()
         logger.warning("Gemini no generó contenido válido")
         return None
 
@@ -88,43 +89,19 @@ def _build_analysis_prompt(scan_results: str) -> str:
     Returns:
         Prompt formateado para Gemini
     """
-    prompt = f"""Actúa como un analista senior de ciberseguridad especializado en bug bounty y pentesting.
+    return f"""Actúa como un analista senior de ciberseguridad especializado en bug bounty y pentesting.
 
-Analiza los siguientes resultados de escaneo de reconocimiento y proporciona un resumen ejecutivo profesional.
+Analiza los siguientes resultados de escaneo de reconocimiento y proporciona:
 
-## INSTRUCCIONES:
-1. **Resumen Ejecutivo**: Proporciona una visión general concisa del estado de seguridad del objetivo
-2. **Top 3 Hallazgos Críticos**: Identifica y prioriza los 3 hallazgos más importantes desde una perspectiva de seguridad
-3. **Recomendaciones**: Sugiere los próximos pasos específicos para la investigación
-4. **Superficie de Ataque**: Evalúa la superficie de ataque expuesta
+1. **RESUMEN EJECUTIVO**: Un resumen conciso de los hallazgos más importantes
+2. **TOP 3 HALLAZGOS CRÍTICOS**: Los 3 descubrimientos más importantes ordenados por criticidad
+3. **RECOMENDACIONES**: Próximos pasos específicos para la investigación
+4. **SUPERFICIE DE ATAQUE**: Evaluación del perímetro de ataque identificado
 
-## FORMATO DE RESPUESTA:
-Usa formato Markdown con las siguientes secciones:
-
-### 🎯 Resumen Ejecutivo
-[Tu análisis aquí]
-
-### ⚠️ Top 3 Hallazgos Críticos
-1. **[Hallazgo 1]**: [Descripción y impacto]
-2. **[Hallazgo 2]**: [Descripción y impacto]
-3. **[Hallazgo 3]**: [Descripción y impacto]
-
-### 🔍 Próximos Pasos Recomendados
-- [Recomendación 1]
-- [Recomendación 2]
-- [Recomendación 3]
-
-### 📊 Superficie de Ataque
-[Evaluación de la superficie de ataque]
-
-## RESULTADOS DEL ESCANEO:
-```
+Datos del escaneo:
 {scan_results}
-```
 
-Proporciona un análisis profesional, conciso y accionable. Enfócate en hallazgos que sean relevantes para bug bounty y pentesting."""
-
-    return prompt
+Enfócate en hallazgos que sean relevantes para bug bounty y pentesting."""
 
 
 def save_ai_summary(summary: str, output_file: str) -> bool:
@@ -138,7 +115,8 @@ def save_ai_summary(summary: str, output_file: str) -> bool:
         True si se guardó exitosamente, False en caso contrario
     """
     try:
-        with open(output_file, "w", encoding="utf-8") as f:
+        output_path = Path(output_file)
+        with output_path.open("w", encoding="utf-8") as f:
             f.write("# Resumen de Análisis de IA\n\n")
             f.write("Generado por Ultra-BugBountyScanner usando Google Gemini\n\n")
             f.write("---\n\n")
@@ -174,42 +152,54 @@ def format_scan_data_for_ai(
     # Leer subdominios
     if subdomains_file:
         try:
-            with open(subdomains_file, encoding="utf-8") as f:
+            subdomains_path = Path(subdomains_file)
+            with subdomains_path.open(encoding="utf-8") as f:
                 subdomains = f.read().strip()
                 if subdomains:
-                    scan_data_parts.append(f"=== SUBDOMINIOS ENCONTRADOS ===\n{subdomains}\n")
+                    scan_data_parts.append(f"## SUBDOMINIOS ENCONTRADOS\n{subdomains}\n")
+        except FileNotFoundError:
+            logger.warning(f"Archivo de subdominios no encontrado: {subdomains_file}")
         except Exception as e:
-            logger.warning(f"No se pudo leer archivo de subdominios: {e}")
+            logger.error(f"Error leyendo archivo de subdominios: {e}")
 
-    # Leer puertos
+    # Leer archivo de puertos
     if ports_file:
         try:
-            with open(ports_file, encoding="utf-8") as f:
+            ports_path = Path(ports_file)
+            with ports_path.open(encoding="utf-8") as f:
                 ports = f.read().strip()
                 if ports:
-                    scan_data_parts.append(f"=== ESCANEO DE PUERTOS ===\n{ports}\n")
+                    scan_data_parts.append(f"## ESCANEO DE PUERTOS\n{ports}\n")
+        except FileNotFoundError:
+            logger.warning(f"Archivo de puertos no encontrado: {ports_file}")
         except Exception as e:
-            logger.warning(f"No se pudo leer archivo de puertos: {e}")
+            logger.error(f"Error leyendo archivo de puertos: {e}")
 
-    # Leer vulnerabilidades
+    # Leer archivo de vulnerabilidades
     if vulnerabilities_file:
         try:
-            with open(vulnerabilities_file, encoding="utf-8") as f:
+            vulnerabilities_path = Path(vulnerabilities_file)
+            with vulnerabilities_path.open(encoding="utf-8") as f:
                 vulnerabilities = f.read().strip()
                 if vulnerabilities:
-                    scan_data_parts.append(f"=== VULNERABILIDADES DETECTADAS ===\n{vulnerabilities}\n")
+                    scan_data_parts.append(f"## VULNERABILIDADES DETECTADAS\n{vulnerabilities}\n")
+        except FileNotFoundError:
+            logger.warning(f"Archivo de vulnerabilidades no encontrado: {vulnerabilities_file}")
         except Exception as e:
-            logger.warning(f"No se pudo leer archivo de vulnerabilidades: {e}")
+            logger.error(f"Error leyendo archivo de vulnerabilidades: {e}")
 
-    # Leer assets web
+    # Leer archivo de assets web
     if web_assets_file:
         try:
-            with open(web_assets_file, encoding="utf-8") as f:
+            web_assets_path = Path(web_assets_file)
+            with web_assets_path.open(encoding="utf-8") as f:
                 web_assets = f.read().strip()
                 if web_assets:
-                    scan_data_parts.append(f"=== ASSETS WEB ACTIVOS ===\n{web_assets}\n")
+                    scan_data_parts.append(f"## ASSETS WEB ACTIVOS\n{web_assets}\n")
+        except FileNotFoundError:
+            logger.warning(f"Archivo de assets web no encontrado: {web_assets_file}")
         except Exception as e:
-            logger.warning(f"No se pudo leer archivo de assets web: {e}")
+            logger.error(f"Error leyendo archivo de assets web: {e}")
 
     if not scan_data_parts:
         return "No se encontraron datos de escaneo para analizar."

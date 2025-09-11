@@ -13,8 +13,14 @@ services:
       - ./wordlists:/app/wordlists:ro # 'ro' for read-only
       
     # 2. CORRECCIÓN: Usamos el dominio raíz. ¡Cámbialo por tu objetivo!
-    command: ["-d", "ncs.co", "--verbose"]
-
+    command: [
+      "-d", "ncs.co", 
+      "-d", "ncs.com.cn", 
+      # "-d", "dsanalytics.com", \--\ Examples
+      # "-d", "dialog.com.au",
+      # "-d", "ncsimpact.co",
+      "--verbose"
+    ]
     # 3. CORRECCIÓN: Se añaden servidores DNS para mejorar la resolución de Nmap.
     dns:
       - 8.8.8.8

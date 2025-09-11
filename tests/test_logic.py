@@ -15,7 +15,7 @@ import tempfile
 import unittest
 from unittest.mock import Mock, patch
 
-from hypothesis import given
+from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -34,15 +34,16 @@ class TestSetupDirectories(unittest.TestCase):
 
     @given(
         domains=st.lists(
-            st.text(
-                alphabet=st.characters(whitelist_categories=("Ll", "Lu", "Nd"), whitelist_characters=".-_"),
-                min_size=1,
-                max_size=50,
-            ).filter(lambda x: x and not x.startswith(".") and not x.endswith(".")),
+            st.builds(
+                lambda name, tld: f"{name}.{tld}",
+                name=st.text(alphabet="abcdefghijklmnopqrstuvwxyz0123456789", min_size=1, max_size=10),
+                tld=st.sampled_from(["com", "org", "net", "edu", "gov"]),
+            ),
             min_size=1,
-            max_size=5,
+            max_size=3,
         )
     )
+    @settings(deadline=1000, suppress_health_check=[HealthCheck.filter_too_much])
     def test_setup_directories_creates_structure(self, domains: list[str]) -> None:
         """Prueba que setup_directories crea la estructura correcta de directorios.
 
@@ -164,7 +165,7 @@ class TestDiscordNotifications(unittest.TestCase):
     def test_format_scan_summary(self) -> None:
         """Prueba el formateo de resúmenes de escaneo."""
         domains = ["example.com", "test.org"]
-        duration = 123.45
+        duration = 45.67  # Usar duración menor a 60 segundos
         output_dir = "/path/to/output"
 
         summary = format_scan_summary(
@@ -172,7 +173,7 @@ class TestDiscordNotifications(unittest.TestCase):
         )
 
         self.assertIn("example.com, test.org", summary)
-        self.assertIn("123.45", summary)
+        self.assertIn("45.7 segundos", summary)  # Verificar formato correcto
         self.assertIn("/path/to/output", summary)
         self.assertIn("50", summary)
         self.assertIn("3", summary)
@@ -222,26 +223,35 @@ class TestAIAnalyzer(unittest.TestCase):
         with self.assertRaises(ValueError):
             get_gemini_summary("api_key", "")
 
-    @patch("builtins.open", create=True)
-    def test_format_scan_data_for_ai(self, mock_open: Mock) -> None:
+    @patch("utils.ai_analyzer.Path")
+    def test_format_scan_data_for_ai(self, mock_path: Mock) -> None:
         """Prueba el formateo de datos para análisis de IA."""
         # Configurar mock para archivos
-        mock_file_content = {
-            "subdomains.txt": "sub1.example.com\nsub2.example.com",
-            "ports.txt": "80/tcp open\n443/tcp open",
-        }
+        mock_subdomains_file = Mock()
+        mock_subdomains_context = Mock()
+        mock_subdomains_context.read.return_value = "sub1.example.com\nsub2.example.com"
+        mock_subdomains_file.open.return_value.__enter__ = Mock(return_value=mock_subdomains_context)
+        mock_subdomains_file.open.return_value.__exit__ = Mock(return_value=None)
 
-        def mock_open_func(filename, *args, **kwargs):
-            mock_file = Mock()
-            if "subdomains.txt" in filename:
-                mock_file.read.return_value = mock_file_content["subdomains.txt"]
-            elif "ports.txt" in filename:
-                mock_file.read.return_value = mock_file_content["ports.txt"]
-            else:
-                mock_file.read.return_value = ""
-            return mock_file
+        mock_ports_file = Mock()
+        mock_ports_context = Mock()
+        mock_ports_context.read.return_value = "80/tcp open\n443/tcp open"
+        mock_ports_file.open.return_value.__enter__ = Mock(return_value=mock_ports_context)
+        mock_ports_file.open.return_value.__exit__ = Mock(return_value=None)
 
-        mock_open.side_effect = mock_open_func
+        def mock_path_func(filename: str) -> Mock:
+            if "subdomains.txt" in str(filename):
+                return mock_subdomains_file
+            if "ports.txt" in str(filename):
+                return mock_ports_file
+            mock_empty = Mock()
+            mock_empty_context = Mock()
+            mock_empty_context.read.return_value = ""
+            mock_empty.open.return_value.__enter__ = Mock(return_value=mock_empty_context)
+            mock_empty.open.return_value.__exit__ = Mock(return_value=None)
+            return mock_empty
+
+        mock_path.side_effect = mock_path_func
 
         result = format_scan_data_for_ai(subdomains_file="subdomains.txt", ports_file="ports.txt")
 

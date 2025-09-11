@@ -1,20 +1,22 @@
 """Módulo de notificaciones para Discord.
 
-Este módulo proporciona funcionalidad para enviar notificaciones
-a través de webhooks de Discord.
+Este módulo proporciona funcionalidades para enviar notificaciones
+a Discord mediante webhooks y formatear resúmenes de escaneos.
 """
 
-import logging
 from typing import Optional
 
 import requests
+from requests.exceptions import RequestException, Timeout
+
+from utils.logger import UltraLogger
 
 # Configurar logger
-logger = logging.getLogger(__name__)
+logger = UltraLogger("notifications")
 
 
 def send_discord_notification(webhook_url: str, message: str) -> bool:
-    """Envía una notificación a Discord a través de un webhook.
+    """Envía una notificación a Discord mediante webhook.
 
     Args:
         webhook_url: URL del webhook de Discord
@@ -28,53 +30,45 @@ def send_discord_notification(webhook_url: str, message: str) -> bool:
     """
     # Validación de entrada
     if not webhook_url or not webhook_url.strip():
-        logger.error("webhook_url no puede estar vacío")
         raise ValueError("webhook_url no puede estar vacío")
 
     if not message or not message.strip():
-        logger.error("message no puede estar vacío")
         raise ValueError("message no puede estar vacío")
 
     # Preparar payload
     payload = {"content": message.strip()}
 
-    # Headers para la petición
+    # Headers de seguridad
     headers = {"Content-Type": "application/json", "User-Agent": "Ultra-BugBountyScanner/1.0"}
 
     try:
-        logger.info(f"Enviando notificación a Discord: {message[:100]}...")
+        logger.info(f"Enviando notificación a Discord: {len(message)} caracteres")
 
         # Realizar petición POST con timeout
         response = requests.post(
             webhook_url,
             json=payload,
             headers=headers,
-            timeout=30,  # Timeout de 30 segundos
+            timeout=10,  # Timeout de 10 segundos
         )
 
-        # Verificar si la respuesta fue exitosa (2xx)
-        if response.status_code >= 200 and response.status_code < 300:
-            logger.info(f"Notificación enviada exitosamente. Status: {response.status_code}")
+        # Verificar status code
+        if 200 <= response.status_code < 300:
+            logger.info(f"Notificación enviada exitosamente (status: {response.status_code})")
             return True
         logger.error(
             f"Error al enviar notificación. Status: {response.status_code}, Response: {response.text[:200]}"
         )
         return False
 
-    except requests.exceptions.Timeout:
+    except Timeout:
         logger.error("Timeout al enviar notificación a Discord")
         return False
-
-    except requests.exceptions.ConnectionError:
-        logger.error("Error de conexión al enviar notificación a Discord")
+    except RequestException as e:
+        logger.error(f"Error de red al enviar notificación: {e}")
         return False
-
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Error de requests al enviar notificación: {str(e)}")
-        return False
-
     except Exception as e:
-        logger.error(f"Error inesperado al enviar notificación: {str(e)}")
+        logger.error(f"Error inesperado al enviar notificación: {e}")
         return False
 
 
@@ -83,43 +77,36 @@ def format_scan_summary(
     duration: float,
     output_dir: str,
     total_subdomains: Optional[int] = None,
-    total_ports: Optional[int] = None,
     total_vulnerabilities: Optional[int] = None,
 ) -> str:
-    """Formatea un resumen del escaneo para Discord.
+    """Formatea un resumen del escaneo para notificaciones.
 
     Args:
         domains: Lista de dominios escaneados
         duration: Duración del escaneo en segundos
         output_dir: Directorio de salida de los resultados
-        total_subdomains: Número total de subdominios encontrados
-        total_ports: Número total de puertos abiertos
-        total_vulnerabilities: Número total de vulnerabilidades encontradas
+        total_subdomains: Número total de subdominios encontrados (opcional)
+        total_vulnerabilities: Número total de vulnerabilidades encontradas (opcional)
 
     Returns:
-        Mensaje formateado para Discord
+        Mensaje formateado con el resumen del escaneo
     """
-    domains_str = ", ".join(domains)
-    duration_formatted = f"{duration:.2f}"
+    # Formatear duración
+    duration_str = f"{duration / 60:.1f} minutos" if duration >= 60 else f"{duration:.1f} segundos"
 
+    # Construir mensaje por partes
     message_parts = [
-        "🔍 **Escaneo Ultra-BugBountyScanner Completado**",
-        f"📋 **Dominios:** {domains_str}",
-        f"⏱️ **Duración:** {duration_formatted} segundos",
-        f"📁 **Resultados en:** {output_dir}",
+        "🔍 **Escaneo Completado**",
+        f"**Dominios:** {', '.join(domains)}",
+        f"**Duración:** {duration_str}",
+        f"**Resultados en:** {output_dir}",
     ]
 
-    # Añadir estadísticas si están disponibles
+    # Agregar estadísticas si están disponibles
     if total_subdomains is not None:
-        message_parts.append(f"🌐 **Subdominios encontrados:** {total_subdomains}")
-
-    if total_ports is not None:
-        message_parts.append(f"🔌 **Puertos abiertos:** {total_ports}")
+        message_parts.append(f"**Subdominios encontrados:** {total_subdomains}")
 
     if total_vulnerabilities is not None:
-        if total_vulnerabilities > 0:
-            message_parts.append(f"⚠️ **Vulnerabilidades encontradas:** {total_vulnerabilities}")
-        else:
-            message_parts.append("✅ **No se encontraron vulnerabilidades críticas**")
+        message_parts.append(f"**Vulnerabilidades encontradas:** {total_vulnerabilities}")
 
     return "\n".join(message_parts)
