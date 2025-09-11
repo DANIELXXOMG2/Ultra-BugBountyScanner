@@ -1,7 +1,7 @@
 """Pruebas unitarias para el módulo de análisis de IA."""
 
-import unittest
 from typing import Any
+import unittest
 from unittest.mock import MagicMock, patch
 
 from utils.ai_analyzer import GENAI_AVAILABLE, get_gemini_summary

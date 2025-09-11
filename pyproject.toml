@@ -146,3 +146,15 @@ markers = [
     "integration: marks tests as integration tests",
     "unit: marks tests as unit tests",
 ]
+
+# Configuración de Pylint - Auditoría de Duplicación de Código
+[tool.pylint.main]
+jobs = 0  # Usar todos los cores disponibles para acelerar el análisis
+
+[tool.pylint.messages_control]
+disable = "all"  # Deshabilitar todas las verificaciones por defecto
+enable = "duplicate-code"  # Habilitar solo la detección de código duplicado
+
+[tool.pylint.similarities]
+min-similarity-lines = 5  # Reportar solo bloques duplicados de 5+ líneas
+ignore-docstrings = true  # Ignorar docstrings similares como duplicados
