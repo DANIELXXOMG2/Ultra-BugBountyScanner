@@ -4,21 +4,32 @@
 Command Runner Utility
 Author: danielxxomg2
 """
-import subprocess
 import shlex
-from typing import Union
+import subprocess
+from typing import List, Optional, Tuple, Union
 
 from .logger import get_logger
 
 logger = get_logger('runner')
 
-def run_command(command: Union[str, list[str]], shell=False, timeout=3600):
+def run_command(
+    command: Union[str, List[str]], 
+    shell: bool = False, 
+    timeout: int = 3600
+) -> Tuple[Optional[str], Optional[str]]:
     """
     Ejecuta un comando de sistema de forma segura, loggeando la salida.
     
-    :param command: El comando a ejecutar (string o lista de strings).
-    :param shell: Si es True, ejecuta el comando a través de la shell (¡usar con cuidado!).
-    :param timeout: Timeout en segundos para el comando.
+    Args:
+        command: El comando a ejecutar (string o lista de strings).
+        shell: Si es True, ejecuta el comando a través de la shell (¡usar con cuidado!).
+        timeout: Timeout en segundos para el comando.
+        
+    Returns:
+        Tuple con (stdout, stderr). Si hay error, stdout será None.
+        
+    Raises:
+        No lanza excepciones, maneja todos los errores internamente.
     """
     if isinstance(command, list) and not shell:
         cmd_str = ' '.join(shlex.quote(c) for c in command)

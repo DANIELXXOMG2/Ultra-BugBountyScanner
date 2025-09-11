@@ -9,8 +9,10 @@ Description: Python-based reconnaissance tool orchestrator.
 
 import argparse
 import os
-from pathlib import Path
 import time
+from pathlib import Path
+from typing import List
+
 from dotenv import load_dotenv
 
 from utils.logger import get_logger
@@ -22,7 +24,7 @@ load_dotenv()
 # Inicializar logger
 logger = get_logger()
 
-def setup_directories(output_dir: Path, domains: list[str]) -> bool:
+def setup_directories(output_dir: Path, domains: List[str]) -> bool:
     """Crea los directorios de salida para cada dominio."""
     logger.info("Setting up output directories...")
     try:
@@ -42,7 +44,7 @@ def setup_directories(output_dir: Path, domains: list[str]) -> bool:
         logger.critical(f"Could not create output directories: {e}")
         return False
 
-def enumerate_subdomains(domain: str, output_dir: Path):
+def enumerate_subdomains(domain: str, output_dir: Path) -> None:
     """Fase 1: Enumeración de Subdominios."""
     logger.info(f"Starting subdomain enumeration for {domain}")
     domain_out = output_dir / domain / "subdomains"
@@ -86,7 +88,7 @@ def enumerate_subdomains(domain: str, output_dir: Path):
     
     logger.success(f"Found {len(all_subdomains)} unique subdomains for {domain}")
 
-def scan_ports(domain: str, output_dir: Path, quick_mode: bool):
+def scan_ports(domain: str, output_dir: Path, quick_mode: bool) -> None:
     """Fase 2: Escaneo de Puertos."""
     logger.info(f"Starting port scanning for {domain}")
     subdomains_file = output_dir / domain / "subdomains" / "all_subdomains.txt"
@@ -123,7 +125,7 @@ def scan_ports(domain: str, output_dir: Path, quick_mode: bool):
     logger.success(f"Port scanning completed for {domain}")
 
 
-def main():
+def main() -> None:
     """Punto de entrada principal del scanner."""
     parser = argparse.ArgumentParser(description=f"Ultra-BugBountyScanner v1.1.0 - Python Refactor")
     parser.add_argument('-d', '--domain', action='append', required=True, help='Target domain(s) to scan.')

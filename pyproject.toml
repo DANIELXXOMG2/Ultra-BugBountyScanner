@@ -1,0 +1,146 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ultra-bugbounty-scanner"
+version = "1.1.0"
+description = "Python-based reconnaissance tool orchestrator for bug bounty hunting"
+authors = [{name = "danielxxomg2"}]
+requires-python = ">=3.9"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Information Technology",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Security",
+]
+
+# Configuración de Ruff - Linter y Formatter moderno
+[tool.ruff]
+line-length = 120
+target-version = "py39"
+
+# Reglas de linting habilitadas
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort (import sorting)
+    "N",   # pep8-naming
+    "D",   # pydocstyle (docstrings)
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "S",   # flake8-bandit (security)
+    "C4",  # flake8-comprehensions
+    "PIE", # flake8-pie
+    "SIM", # flake8-simplify
+    "RET", # flake8-return
+    "ARG", # flake8-unused-arguments
+    "PTH", # flake8-use-pathlib
+]
+
+# Reglas ignoradas específicas
+ignore = [
+    "D100", # Missing docstring in public module
+    "D104", # Missing docstring in public package
+    "D203", # 1 blank line required before class docstring
+    "D213", # Multi-line docstring summary should start at the second line
+    "S101", # Use of assert detected (común en tests)
+    "S603", # subprocess call: check for execution of untrusted input
+    "S607", # Starting a process with a partial executable path
+]
+
+# Configuración de isort dentro de ruff
+[tool.ruff.lint.isort]
+known-first-party = ["utils"]
+force-sort-within-sections = true
+split-on-trailing-comma = true
+
+# Configuración de pydocstyle
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+# Configuración por archivo
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101", "D", "ARG001"]  # Permitir asserts y menos docstrings en tests
+"scanner_main.py" = ["S603", "S607"]  # Permitir subprocess calls en el main
+"utils/runner.py" = ["S603", "S607"]   # Permitir subprocess calls en runner
+
+# Configuración de MyPy - Type Checker
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+show_error_codes = true
+show_column_numbers = true
+pretty = true
+
+# Configuración específica para módulos externos
+[[tool.mypy.overrides]]
+module = [
+    "colorama",
+    "colorama.*",
+]
+ignore_missing_imports = true
+
+# Configuración de Bandit - Security Linter
+[tool.bandit]
+exclude_dirs = ["tests", "venv", ".venv"]
+skips = [
+    "B101",  # assert_used - común en desarrollo
+    "B603",  # subprocess_without_shell_equals_true - necesario para herramientas externas
+    "B607",  # start_process_with_partial_path - necesario para herramientas de seguridad
+]
+
+# Tests con bandit más estrictos en archivos críticos
+[tool.bandit.assert_used]
+skips = ["**/tests/**"]
+
+# Configuración de Coverage (para futuras pruebas)
+[tool.coverage.run]
+source = [".", "utils"]
+omit = [
+    "tests/*",
+    "venv/*",
+    ".venv/*",
+    "setup.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]
+
+# Configuración de pytest (para futuras pruebas)
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short --strict-markers"
+markers = [
+    "slow: marks tests as slow (deselect with '-m "not slow"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+]

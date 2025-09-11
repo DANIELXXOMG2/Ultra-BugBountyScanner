@@ -6,8 +6,9 @@ Author: danielxxomg2
 Version: 1.1.0
 """
 import logging
-import sys
 import os
+import sys
+from typing import Any, Dict, Optional
 
 try:
     import colorama
@@ -24,7 +25,7 @@ except ImportError:
 class ColoredFormatter(logging.Formatter):
     """Custom formatter with color support for console output."""
     
-    LOG_COLORS = {
+    LOG_COLORS: Dict[str, str] = {
         'DEBUG': Fore.CYAN,
         'INFO': Fore.BLUE,
         'SUCCESS': Fore.GREEN,
@@ -33,7 +34,7 @@ class ColoredFormatter(logging.Formatter):
         'CRITICAL': Fore.MAGENTA + Style.BRIGHT,
     }
 
-    def format(self, record):
+    def format(self, record: logging.LogRecord) -> str:
         # Nivel de log personalizado "SUCCESS"
         if not hasattr(record, 'success'):
             record.success = False
@@ -49,17 +50,17 @@ class ColoredFormatter(logging.Formatter):
 class UltraLogger(logging.Logger):
     """Logger principal personalizado para el scanner."""
 
-    def __init__(self, name, level=logging.NOTSET):
+    def __init__(self, name: str, level: int = logging.NOTSET) -> None:
         super().__init__(name, level)
         # Añadir nivel SUCCESS
         logging.addLevelName(25, "SUCCESS")
 
-    def success(self, msg, *args, **kwargs):
+    def success(self, msg: Any, *args: Any, **kwargs: Any) -> None:
         if self.isEnabledFor(25):
             self._log(25, msg, args, extra={'success': True}, **kwargs)
 
 # Configuración del singleton para el logger
-_logger_instance = None
+_logger_instance: Optional[UltraLogger] = None
 
 def get_logger(name: str = 'scanner') -> UltraLogger:
     """
