@@ -1,60 +1,63 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Command Runner Utility
+"""Command Runner Utility.
+
 Author: danielxxomg2
 """
+
 import shlex
-import subprocess
-from typing import List, Optional, Tuple, Union
+import subprocess  # nosec B404 - Necesario para ejecutar herramientas de seguridad
+from typing import Optional, Union
 
 from .logger import get_logger
 
-logger = get_logger('runner')
+logger = get_logger("runner")
+
 
 def run_command(
-    command: Union[str, List[str]], 
-    shell: bool = False, 
-    timeout: int = 3600
-) -> Tuple[Optional[str], Optional[str]]:
-    """
-    Ejecuta un comando de sistema de forma segura, loggeando la salida.
-    
+    command: Union[str, list[str]], shell: bool = False, timeout: int = 3600
+) -> tuple[Optional[str], Optional[str]]:
+    """Ejecuta un comando de sistema de forma segura, loggeando la salida.
+
     Args:
         command: El comando a ejecutar (string o lista de strings).
         shell: Si es True, ejecuta el comando a través de la shell (¡usar con cuidado!).
         timeout: Timeout en segundos para el comando.
-        
+
     Returns:
         Tuple con (stdout, stderr). Si hay error, stdout será None.
-        
+
     Raises:
         No lanza excepciones, maneja todos los errores internamente.
     """
-    if isinstance(command, list) and not shell:
-        cmd_str = ' '.join(shlex.quote(c) for c in command)
-    else:
-        cmd_str = command
-    
+    cmd_str = " ".join(shlex.quote(c) for c in command) if isinstance(command, list) and not shell else command
+
     logger.debug(f"Executing command: {cmd_str}")
-    
+
     try:
         # Usamos Popen para tener un mejor control sobre procesos largos
-        process = subprocess.Popen(
-            command,
+        # Validación de seguridad para shell=True
+        if shell and isinstance(command, str):
+            # Verificar que no contenga caracteres peligrosos cuando se usa shell=True
+            dangerous_chars = [";", "&", "|", "`", "$", "(", ")"]
+            if any(char in command for char in dangerous_chars):
+                logger.error(f"Comando potencialmente peligroso detectado: {command}")
+                return None, "Comando rechazado por razones de seguridad"
+
+        process = subprocess.Popen(  # nosec B602 - shell=True controlado y validado
+            cmd_str if shell else command,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
             shell=shell,
-            encoding='utf-8',
-            errors='replace'
+            encoding="utf-8",
+            errors="replace",
         )
-        
+
         stdout, stderr = process.communicate(timeout=timeout)
-        
+
         if stdout:
             logger.debug(f"Stdout for '{cmd_str}':\n{stdout.strip()}")
-        
+
         if process.returncode != 0:
             logger.error(f"Command '{cmd_str}' failed with exit code {process.returncode}.")
             if stderr:
