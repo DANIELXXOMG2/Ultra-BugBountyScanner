@@ -13,6 +13,7 @@ import time
 from dotenv import load_dotenv
 
 from utils.logger import get_logger
+from utils.notifications import send_discord_notification
 from utils.runner import run_command
 
 # Cargar variables de entorno desde .env
@@ -85,7 +86,7 @@ def enumerate_subdomains(domain: str, output_dir: Path) -> None:
                 all_subdomains.update(subdomains)
 
     with open(all_subs_file, "w") as f:
-        for sub in sorted(list(all_subdomains)):
+        for sub in sorted(all_subdomains):
             f.write(f"{sub}\n")
 
     logger.success(f"Found {len(all_subdomains)} unique subdomains for {domain}")
@@ -138,6 +139,80 @@ def scan_ports(domain: str, output_dir: Path, quick_mode: bool) -> None:
     logger.success(f"Port scanning completed for {domain}")
 
 
+def discover_web_assets(domain: str, output_dir: Path) -> None:
+    """Discover web assets using httpx.
+
+    Args:
+        domain: The domain being scanned
+        output_dir: The output directory for this domain
+    """
+    web_dir = output_dir / domain / "web"
+    web_dir.mkdir(parents=True, exist_ok=True)
+
+    # Check if subdomains file exists
+    subdomains_file = output_dir / domain / "subdomains" / "all_subdomains.txt"
+    if not subdomains_file.exists():
+        logger.warning(f"Subdomains file not found: {subdomains_file}")
+        return
+
+    # Run httpx to discover live web assets
+    httpx_output = web_dir / "httpx_live.txt"
+    httpx_cmd = [
+        "httpx",
+        "-l",
+        str(subdomains_file),
+        "-o",
+        str(httpx_output),
+        "-silent",
+        "-follow-redirects",
+        "-status-code",
+    ]
+
+    logger.info(f"Running httpx web discovery for {domain}...")
+    run_command(httpx_cmd)
+    logger.success(f"httpx web discovery completed for {domain}")
+
+
+def scan_vulnerabilities(domain: str, output_dir: Path, quick_mode: bool) -> None:
+    """Scan for vulnerabilities using nuclei.
+
+    Args:
+        domain: The domain being scanned
+        output_dir: The output directory for this domain
+        quick_mode: Whether to run in quick mode (skip vulnerability scanning)
+    """
+    if quick_mode:
+        logger.info("Quick mode enabled, skipping vulnerability scanning")
+        return
+
+    vulnerabilities_dir = output_dir / domain / "vulnerabilities"
+    vulnerabilities_dir.mkdir(parents=True, exist_ok=True)
+
+    # Check if web assets file exists
+    web_assets_file = output_dir / domain / "web" / "httpx_live.txt"
+    if not web_assets_file.exists():
+        logger.warning(f"Web assets file not found: {web_assets_file}")
+        return
+
+    # Run nuclei for vulnerability scanning
+    nuclei_output = vulnerabilities_dir / "nuclei_results.json"
+    nuclei_cmd = [
+        "nuclei",
+        "-l",
+        str(web_assets_file),
+        "-o",
+        str(nuclei_output),
+        "-json",
+        "-severity",
+        "high,critical",
+        "-silent",
+    ]
+
+    logger.info(f"Running nuclei vulnerability scan for {domain}...")
+    run_command(nuclei_cmd)
+    logger.success(f"nuclei vulnerability scan completed for {domain}")
+
+
 def main() -> None:
     """Punto de entrada principal del scanner."""
     parser = argparse.ArgumentParser(description="Ultra-BugBountyScanner v1.1.0 - Python Refactor")
@@ -169,11 +244,30 @@ def main() -> None:
         logger.info(f"Processing target: {domain}")
         enumerate_subdomains(domain, output_dir)
         scan_ports(domain, output_dir, args.quick)
-        # Aquí se añadirán las llamadas a las demás fases (web, content, etc.) en la Fase 2
+        discover_web_assets(domain, output_dir)
+        scan_vulnerabilities(domain, output_dir, args.quick)
         logger.success(f"Finished processing for {domain}")
 
-    duration = time.time() - start_time
-    logger.success(f"All scans completed in {duration:.2f} seconds.")
+    end_time = time.time()
+    duration = int(end_time - start_time)
+
+    logger.success(f"All scans completed in {duration} seconds.")
+
+    # Send Discord notification if webhook URL is configured
+    webhook_url = os.getenv("DISCORD_WEBHOOK_URL")
+    if webhook_url and webhook_url.strip():
+        domains_str = ", ".join(args.domain)
+        message = (
+            f"🚀 Escaneo completado para los objetivos: {domains_str}. "
+            f"Duración: {duration} segundos. "
+            f"Resultados disponibles en la carpeta `{output_dir.name}`."
+        )
+
+        success = send_discord_notification(webhook_url, message)
+        if success:
+            logger.info("Discord notification sent successfully")
+        else:
+            logger.warning("Failed to send Discord notification")
 
 
 if __name__ == "__main__":

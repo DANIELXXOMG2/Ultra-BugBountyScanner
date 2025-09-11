@@ -13,12 +13,14 @@ import shutil
 import sys
 import tempfile
 import unittest
+from unittest.mock import MagicMock, Mock, patch
 
 from hypothesis import given
 from hypothesis import strategies as st
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-from scanner_main import setup_directories
+from scanner_main import discover_web_assets, scan_vulnerabilities, setup_directories
+from utils.notifications import send_discord_notification
 
 
 class TestSetupDirectories(unittest.TestCase):
@@ -108,6 +110,148 @@ class TestSetupDirectories(unittest.TestCase):
         for domain in domains:
             domain_dir = output_dir / domain
             self.assertTrue(domain_dir.exists(), f"Directorio '{domain}' debe existir")
+
+
+class TestDiscoverWebAssets(unittest.TestCase):
+    """Pruebas para la función discover_web_assets."""
+
+    def setUp(self) -> None:
+        """Configurar el entorno de prueba."""
+        self.test_base_dir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.test_base_dir)
+        self.output_dir = Path(self.test_base_dir)
+        self.domain = "example.com"
+
+    @patch("scanner_main.run_command")
+    def test_discover_web_assets_success(self, mock_run_command: Mock) -> None:
+        """Prueba que discover_web_assets funciona correctamente."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            domain = "example.com"
+            output_dir = Path(temp_dir)
+            subdomains_dir = output_dir / domain / "subdomains"
+            subdomains_file = subdomains_dir / "all_subdomains.txt"
+
+            # Crear estructura de directorios y archivo de subdominios
+            subdomains_dir.mkdir(parents=True)
+            subdomains_file.write_text("sub1.example.com\nsub2.example.com\n")
+
+            # Configurar mock
+            mock_run_command.return_value = (0, "Output", "")
+
+            # Ejecutar función
+            discover_web_assets(domain, output_dir)
+
+            # Verificar que se llamó a run_command
+            self.assertTrue(mock_run_command.called)
+            # Verificar que el comando contiene httpx
+            call_args = mock_run_command.call_args[0][0]
+            self.assertIn("httpx", call_args)
+
+    def test_discover_web_assets_missing_subdomains(self) -> None:
+        """Prueba que discover_web_assets maneja correctamente archivos faltantes."""
+        with patch("scanner_main.logger") as mock_logger:
+            discover_web_assets(self.domain, self.output_dir)
+            mock_logger.warning.assert_called_once()
+
+
+class TestScanVulnerabilities(unittest.TestCase):
+    """Pruebas para la función scan_vulnerabilities."""
+
+    def setUp(self) -> None:
+        """Configurar el entorno de prueba."""
+        self.test_base_dir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.test_base_dir)
+        self.output_dir = Path(self.test_base_dir)
+        self.domain = "example.com"
+
+    def test_scan_vulnerabilities_quick_mode(self) -> None:
+        """Prueba que scan_vulnerabilities se salta en modo rápido."""
+        with patch("scanner_main.logger") as mock_logger:
+            scan_vulnerabilities(self.domain, self.output_dir, quick_mode=True)
+            mock_logger.info.assert_called_with("Quick mode enabled, skipping vulnerability scanning")
+
+    @patch("scanner_main.run_command")
+    def test_scan_vulnerabilities_success(self, mock_run_command: Mock) -> None:
+        """Prueba que scan_vulnerabilities funciona correctamente."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            domain = "example.com"
+            output_dir = Path(temp_dir)
+            web_dir = output_dir / domain / "web"
+            httpx_file = web_dir / "httpx_live.txt"
+
+            # Crear estructura de directorios y archivo httpx
+            web_dir.mkdir(parents=True)
+            httpx_file.write_text("https://sub1.example.com\nhttps://sub2.example.com\n")
+
+            # Configurar mock
+            mock_run_command.return_value = (0, "Output", "")
+
+            # Ejecutar función
+            scan_vulnerabilities(domain, output_dir, quick_mode=False)
+
+            # Verificar que se llamó a run_command
+            self.assertTrue(mock_run_command.called)
+            # Verificar que el comando contiene nuclei
+            call_args = mock_run_command.call_args[0][0]
+            self.assertIn("nuclei", call_args)
+
+    def test_scan_vulnerabilities_missing_web_assets(self) -> None:
+        """Prueba que scan_vulnerabilities maneja archivos faltantes."""
+        with patch("scanner_main.logger") as mock_logger:
+            scan_vulnerabilities(self.domain, self.output_dir, quick_mode=False)
+            mock_logger.warning.assert_called_once()
+
+
+class TestDiscordNotifications(unittest.TestCase):
+    """Pruebas para las notificaciones de Discord."""
+
+    @patch("utils.notifications.requests.post")
+    def test_send_discord_notification_success(self, mock_post: MagicMock) -> None:
+        """Prueba que send_discord_notification funciona correctamente."""
+        # Configurar mock para respuesta exitosa
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_post.return_value = mock_response
+
+        webhook_url = "https://discord.com/api/webhooks/test"
+        message = "Test message"
+
+        result = send_discord_notification(webhook_url, message)
+
+        self.assertTrue(result)
+        expected_headers = {
+            "Content-Type": "application/json",
+            "User-Agent": "Ultra-BugBountyScanner/1.0",
+        }
+        mock_post.assert_called_once_with(webhook_url, json={"content": message}, headers=expected_headers, timeout=10)
+
+    @patch("utils.notifications.requests.post")
+    def test_send_discord_notification_failure(self, mock_post: MagicMock) -> None:
+        """Prueba que send_discord_notification maneja errores correctamente."""
+        # Configurar mock para respuesta de error
+        mock_response = MagicMock()
+        mock_response.status_code = 400
+        mock_post.return_value = mock_response
+
+        webhook_url = "https://discord.com/api/webhooks/test"
+        message = "Test message"
+
+        result = send_discord_notification(webhook_url, message)
+
+        self.assertFalse(result)
+
+    @patch("utils.notifications.requests.post")
+    def test_send_discord_notification_exception(self, mock_post: MagicMock) -> None:
+        """Prueba que send_discord_notification maneja excepciones."""
+        # Configurar mock para lanzar excepción
+        mock_post.side_effect = Exception("Connection error")
+
+        webhook_url = "https://discord.com/api/webhooks/test"
+        message = "Test message"
+
+        result = send_discord_notification(webhook_url, message)
+
+        self.assertFalse(result)
 
 
 if __name__ == "__main__":
