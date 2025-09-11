@@ -1,0 +1,34 @@
+services:
+  ultra-scanner:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ultra-bugbounty-scanner
+    env_file:
+      - .env
+    
+    # 1. CORRECCIÓN: Apuntamos el volumen a /app/output, que es el directorio correcto.
+    volumes:
+      - ./output:/app/output:rw
+      - ./wordlists:/app/wordlists:ro # 'ro' for read-only
+      
+    # 2. CORRECCIÓN: Usamos el dominio raíz. ¡Cámbialo por tu objetivo!
+    command: ["-d", "ncs.co", "--verbose"]
+
+    # 3. CORRECCIÓN: Se añaden servidores DNS para mejorar la resolución de Nmap.
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
+      
+    security_opt:
+      - no-new-privileges:true
+      
+    # 4. CORRECCIÓN: Se cambia la política de reinicio a "no".
+    restart: "no"
+
+    networks:
+      - scanner-network
+
+networks:
+  scanner-network:
+    driver: bridge
