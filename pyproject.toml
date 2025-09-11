@@ -96,8 +96,6 @@ pretty = true
 module = [
     "colorama",
     "colorama.*",
-    "google.generativeai",
-    "google.generativeai.*",
 ]
 ignore_missing_imports = true
 
