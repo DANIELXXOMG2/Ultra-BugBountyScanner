@@ -3,3 +3,19 @@
 .ruff_cache
 __pycache__
 .env
+.trae
+.trae/
+
+# Ignorar todo dentro de la carpeta de salida
+output/*
+
+!output/.gitkeep
+
+wordlists/*
+
+!wordlists/.gitkeep
+
+__pycache__/
+*.pyc
+.venv/
+.env

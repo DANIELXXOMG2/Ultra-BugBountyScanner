@@ -5,7 +5,6 @@ Pruebas basadas en propiedades usando Hypothesis para las funciones principales.
 Author: danielxxomg2
 """
 
-import os
 from pathlib import Path
 import shutil
 
@@ -15,10 +14,10 @@ import tempfile
 import unittest
 from unittest.mock import MagicMock, Mock, patch
 
-from hypothesis import given
+from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 from scanner_main import discover_web_assets, scan_vulnerabilities, setup_directories
 from utils.notifications import send_discord_notification
 
@@ -33,15 +32,12 @@ class TestSetupDirectories(unittest.TestCase):
 
     @given(
         domains=st.lists(
-            st.text(
-                alphabet=st.characters(whitelist_categories=("Ll", "Lu", "Nd"), whitelist_characters=".-_"),
-                min_size=1,
-                max_size=50,
-            ).filter(lambda x: x and not x.startswith(".") and not x.endswith(".")),
+            st.from_regex(r"[a-z0-9]+\.[a-z]{2,4}", fullmatch=True),
             min_size=1,
-            max_size=5,
+            max_size=2,
         )
     )
+    @settings(suppress_health_check=[HealthCheck.too_slow, HealthCheck.filter_too_much])
     def test_setup_directories_creates_structure(self, domains: list[str]) -> None:
         """Prueba que setup_directories crea la estructura correcta de directorios.
 

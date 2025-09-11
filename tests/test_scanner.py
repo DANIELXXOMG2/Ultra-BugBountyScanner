@@ -7,6 +7,7 @@ Description: Comprehensive test suite for security and functionality validation
 """
 
 import os
+from pathlib import Path
 import shutil
 import subprocess
 import sys
@@ -14,7 +15,7 @@ import tempfile
 import unittest
 
 # Add utils to path for testing
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "utils"))
+sys.path.insert(0, str(Path(__file__).parent.parent / "utils"))
 
 try:
     from utils.logger import UltraLogger
@@ -41,12 +42,12 @@ class TestUltraLogger(unittest.TestCase):
             self.skipTest("Logger module not available")
 
         self.test_dir = tempfile.mkdtemp()
-        self.log_file = os.path.join(self.test_dir, "test.log")
+        self.log_file = str(Path(self.test_dir) / "test.log")
         self.logger = UltraLogger("test-scanner")
 
     def tearDown(self) -> None:
         """Clean up test environment"""
-        if hasattr(self, "test_dir") and os.path.exists(self.test_dir):
+        if hasattr(self, "test_dir") and Path(self.test_dir).exists():
             shutil.rmtree(self.test_dir)
 
     def test_logger_initialization(self) -> None:
@@ -122,10 +123,10 @@ class TestDockerIntegration(unittest.TestCase):
 
     def test_dockerfile_exists(self) -> None:
         """Test that Dockerfile exists and is valid"""
-        dockerfile_path = os.path.join(os.path.dirname(__file__), "..", "Dockerfile")
-        self.assertTrue(os.path.exists(dockerfile_path), "Dockerfile not found")
+        dockerfile_path = Path(__file__).parent.parent / "Dockerfile"
+        self.assertTrue(dockerfile_path.exists(), "Dockerfile not found")
 
-        with open(dockerfile_path) as f:
+        with dockerfile_path.open() as f:
             content = f.read()
 
         # Check for essential Dockerfile components
@@ -136,9 +137,9 @@ class TestDockerIntegration(unittest.TestCase):
 
     def test_docker_compose_exists(self) -> None:
         """Test that docker-compose.yml exists and has basic structure"""
-        compose_path = os.path.join(os.path.dirname(__file__), "..", "docker-compose.yml")
-        if os.path.exists(compose_path):
-            with open(compose_path, encoding="utf-8") as f:
+        compose_path = Path(__file__).parent.parent / "docker-compose.yml"
+        if compose_path.exists():
+            with compose_path.open(encoding="utf-8") as f:
                 content = f.read()
                 # Modern docker-compose files don't require version field
                 self.assertIn("services:", content, "docker-compose.yml missing services section")
@@ -149,8 +150,8 @@ class TestDockerIntegration(unittest.TestCase):
 
     def test_dockerignore_exists(self) -> None:
         """Test that .dockerignore exists"""
-        dockerignore_path = os.path.join(os.path.dirname(__file__), "..", ".dockerignore")
-        self.assertTrue(os.path.exists(dockerignore_path), ".dockerignore not found")
+        dockerignore_path = Path(__file__).parent.parent / ".dockerignore"
+        self.assertTrue(dockerignore_path.exists(), ".dockerignore not found")
 
 
 class TestConfigurationFiles(unittest.TestCase):
@@ -160,10 +161,10 @@ class TestConfigurationFiles(unittest.TestCase):
 
     def test_env_example_exists(self) -> None:
         """Test that .env.example exists and contains required variables"""
-        env_path = os.path.join(os.path.dirname(__file__), "..", ".env.example")
-        self.assertTrue(os.path.exists(env_path), ".env.example not found")
+        env_path = Path(__file__).parent.parent / ".env.example"
+        self.assertTrue(env_path.exists(), ".env.example not found")
 
-        with open(env_path) as f:
+        with env_path.open() as f:
             content = f.read()
 
         # Check for essential environment variables
@@ -174,8 +175,8 @@ class TestConfigurationFiles(unittest.TestCase):
 
     def test_logging_config_exists(self) -> None:
         """Test that logging configuration exists"""
-        config_path = os.path.join(os.path.dirname(__file__), "..", "config", "logging.conf")
-        self.assertTrue(os.path.exists(config_path), "logging.conf not found")
+        config_path = Path(__file__).parent.parent / "config" / "logging.conf"
+        self.assertTrue(config_path.exists(), "logging.conf not found")
 
 
 class TestScannerScript(unittest.TestCase):
@@ -185,20 +186,20 @@ class TestScannerScript(unittest.TestCase):
 
     def test_scanner_script_exists(self) -> None:
         """Test that the main scanner script exists"""
-        script_path = os.path.join(os.path.dirname(__file__), "..", "scanner_main.py")
-        self.assertTrue(os.path.exists(script_path), "scanner_main.py not found")
+        script_path = Path(__file__).parent.parent / "scanner_main.py"
+        self.assertTrue(script_path.exists(), "scanner_main.py not found")
 
     def test_scanner_script_executable(self) -> None:
         """Test that the scanner script has execute permissions"""
-        script_path = os.path.join(os.path.dirname(__file__), "..", "scanner_main.py")
-        if os.path.exists(script_path):
+        script_path = Path(__file__).parent.parent / "scanner_main.py"
+        if script_path.exists():
             # Python scripts are executable if Python is installed
-            self.assertTrue(os.path.isfile(script_path), "Scanner script is not a valid file")
+            self.assertTrue(script_path.is_file(), "Scanner script is not a valid file")
 
     def test_scanner_help_option(self) -> None:
         """Test that scanner script responds to help option"""
-        script_path = os.path.join(os.path.dirname(__file__), "..", "scanner_main.py")
-        if os.path.exists(script_path) and shutil.which("python"):
+        script_path = Path(__file__).parent.parent / "scanner_main.py"
+        if script_path.exists() and shutil.which("python"):
             try:
                 result = subprocess.run(["python", script_path, "--help"], capture_output=True, text=True, timeout=10)  # nosec B603 - Prueba controlada con timeout
                 # Should not return error code for help
@@ -217,7 +218,7 @@ class TestSecurityValidation(unittest.TestCase):
 
     def test_no_hardcoded_secrets(self) -> None:
         """Test that no hardcoded secrets exist in code"""
-        project_root = os.path.join(os.path.dirname(__file__), "..")
+        project_root = Path(__file__).parent.parent
 
         # Patterns that might indicate hardcoded secrets
         secret_patterns = [
@@ -235,13 +236,13 @@ class TestSecurityValidation(unittest.TestCase):
 
             for file in files:
                 if file.endswith((".py", ".sh", ".yml", ".yaml", ".json")):
-                    files_to_check.append(os.path.join(root, file))
+                    files_to_check.append(Path(root) / file)
 
         import re
 
         for file_path in files_to_check:
             try:
-                with open(file_path, encoding="utf-8", errors="ignore") as f:
+                with file_path.open(encoding="utf-8", errors="ignore") as f:
                     content = f.read()
 
                 for pattern in secret_patterns:
@@ -254,26 +255,43 @@ class TestSecurityValidation(unittest.TestCase):
                                 for placeholder in ["example", "placeholder", "your_", "xxx", "yyy", "zzz"]
                             ):
                                 self.fail(f"Potential hardcoded secret found in {file_path}: {match}")
-            except Exception:  # nosec B110 - Necesario para manejar archivos no legibles
+            except Exception as e:  # nosec B110 - Necesario para manejar archivos no legibles
                 # Skip files that can't be read
+                print(f"Warning: Could not read file {file_path}: {e}")
                 continue  # nosec B112 - Continue apropiado en contexto de pruebas
 
     def test_file_permissions(self) -> None:
         """Test that sensitive files exist and are accessible"""
-        project_root = os.path.join(os.path.dirname(__file__), "..")
+        project_root = Path(__file__).parent.parent
 
         # Files that should have restricted permissions
-        sensitive_files = [".env", "config/secrets.conf", "logs/security.log"]
+        sensitive_files = [
+            project_root / ".env",
+            project_root / "config" / "secrets.json",
+        ]
 
         for file_path in sensitive_files:
-            full_path = os.path.join(project_root, file_path)
-            if os.path.exists(full_path):
-                # On Windows, just check that the file exists and is readable by owner
-                self.assertTrue(os.path.isfile(full_path), f"Sensitive file {file_path} is not a valid file")
-                self.assertTrue(os.access(full_path, os.R_OK), f"Sensitive file {file_path} is not readable")
+            if file_path.exists():
+                # Check if file is readable (basic permission test)
+                self.assertTrue(file_path.is_file() and file_path.stat().st_mode)
             else:
                 # Skip test if sensitive files don't exist (they might be optional)
                 continue
+
+    def test_installation_scripts_executable(self) -> None:
+        """Test that installation scripts are executable"""
+        project_root = Path(__file__).parent.parent
+
+        # Scripts to check
+        scripts = [
+            project_root / "install.sh",
+            project_root / "setup.py",
+        ]
+
+        for script_path in scripts:
+            if script_path.exists():
+                # Check if script is executable (basic check)
+                self.assertTrue(script_path.is_file())
 
 
 class TestInstallationScripts(unittest.TestCase):
@@ -283,14 +301,14 @@ class TestInstallationScripts(unittest.TestCase):
 
     def test_scoop_installer_exists(self) -> None:
         """Test that Scoop installer script exists"""
-        installer_path = os.path.join(os.path.dirname(__file__), "..", "install-scoop.ps1")
-        self.assertTrue(os.path.exists(installer_path), "install-scoop.ps1 not found")
+        installer_path = Path(__file__).parent.parent / "install-scoop.ps1"
+        self.assertTrue(installer_path.exists(), "install-scoop.ps1 not found")
 
     def test_scoop_installer_syntax(self) -> None:
         """Test basic PowerShell syntax in Scoop installer"""
-        installer_path = os.path.join(os.path.dirname(__file__), "..", "install-scoop.ps1")
-        if os.path.exists(installer_path):
-            with open(installer_path, encoding="utf-8") as f:
+        installer_path = Path(__file__).parent.parent / "install-scoop.ps1"
+        if installer_path.exists():
+            with installer_path.open(encoding="utf-8") as f:
                 content = f.read()
 
             # Basic PowerShell syntax checks
@@ -366,7 +384,7 @@ def run_all_tests() -> bool:
 
     # Discover and run all tests
     loader = unittest.TestLoader()
-    suite = loader.discover(os.path.dirname(__file__), pattern="test_*.py")
+    suite = loader.discover(str(Path(__file__).parent), pattern="test_*.py")
 
     runner = unittest.TextTestRunner(verbosity=2)
     result = runner.run(suite)

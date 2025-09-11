@@ -12,6 +12,7 @@ import time
 # Removed typing import as we use built-in list annotation
 from dotenv import load_dotenv
 
+from utils.ai_analyzer import get_gemini_summary
 from utils.logger import get_logger
 from utils.notifications import send_discord_notification
 from utils.runner import run_command
@@ -73,19 +74,22 @@ def enumerate_subdomains(domain: str, output_dir: Path) -> None:
     # Certificate Transparency (crt.sh)
     logger.debug("Querying crt.sh...")
     # Esta es una llamada directa a un servicio, se puede mejorar con 'requests' en el futuro
-    crtsh_cmd = f"curl -s \"https://crt.sh/?q=%25.{domain}&output=json\" | jq -r '.[].name_value' | sed 's/\\*\\.//g' | sort -u > {tools['crtsh']}"
-    run_command(crtsh_cmd, shell=True)
+    crtsh_cmd = (
+        f'curl -s "https://crt.sh/?q=%25.{domain}&output=json" | '
+        f"jq -r '.[].name_value' | sed 's/\\*\\.//g' | sort -u > {tools['crtsh']}"
+    )
+    run_command(crtsh_cmd, shell=True)  # nosec B602 B604 - Necesario para pipeline de comandos
 
     # Consolidar resultados
     logger.info("Consolidating subdomain results...")
     all_subdomains = set()
     for tool_file in tools.values():
         if tool_file.exists():
-            with open(tool_file) as f:
+            with tool_file.open() as f:
                 subdomains = {line.strip() for line in f if line.strip()}
                 all_subdomains.update(subdomains)
 
-    with open(all_subs_file, "w") as f:
+    with all_subs_file.open("w") as f:
         for sub in sorted(all_subdomains):
             f.write(f"{sub}\n")
 
@@ -114,13 +118,27 @@ def scan_ports(domain: str, output_dir: Path, quick_mode: bool) -> None:
 
     # Nmap para detección de servicios
     if naabu_file.exists() and naabu_file.stat().st_size > 0:
-        logger.debug("Running Nmap for service detection...")
+        ## CORRECCIÓN: Limpiar la salida de Naabu para Nmap
+        logger.debug("Processing Naabu output for Nmap...")
+        nmap_input_file = ports_out / "nmap_hosts.txt"
+        unique_hosts = set()
+        with naabu_file.open() as f:
+            for line in f:
+                host = line.strip().split(":")[0]
+                if host:
+                    unique_hosts.add(host)
+
+        with nmap_input_file.open("w") as f:
+            for host in sorted(unique_hosts):
+                f.write(f"{host}\n")
+
+        logger.debug(f"Running Nmap for service detection on {len(unique_hosts)} unique hosts...")
         nmap_txt = ports_out / "nmap.txt"
         nmap_xml = ports_out / "nmap.xml"
         nmap_cmd = [
             "nmap",
             "-iL",
-            str(naabu_file),
+            str(nmap_input_file),  ## CORRECCIÓN: Usar el archivo de hosts limpios
             "-sV",
             "-sC",
             "-oN",
@@ -166,6 +184,7 @@ def discover_web_assets(domain: str, output_dir: Path) -> None:
         "-silent",
         "-follow-redirects",
         "-status-code",
+        "-no-color",  ## CORRECCIÓN: Añadir flag para evitar códigos de color en la salida
     ]
 
     logger.info(f"Running httpx web discovery for {domain}...")
@@ -246,6 +265,149 @@ def main() -> None:
         scan_ports(domain, output_dir, args.quick)
         discover_web_assets(domain, output_dir)
         scan_vulnerabilities(domain, output_dir, args.quick)
+
+        # AI Analysis Phase
+        gemini_api_key = os.getenv("GEMINI_API_KEY")
+        if gemini_api_key and gemini_api_key.strip():
+            logger.info(f"Starting AI analysis for {domain}...")
+
+            # Collect scan data from relevant files
+            scan_data_parts = []
+
+            # Subdomains data
+            subdomains_file = output_dir / domain / "subdomains" / "all_subdomains.txt"
+            if subdomains_file.exists() and subdomains_file.stat().st_size > 0:
+                with subdomains_file.open(encoding="utf-8") as f:
+                    subdomains_content = f.read().strip()
+                    if subdomains_content:
+                        scan_data_parts.append(f"=== SUBDOMINIOS ENCONTRADOS ===\n{subdomains_content}")
+
+            # Nmap data
+            nmap_file = output_dir / domain / "ports" / "nmap.txt"
+            if nmap_file.exists() and nmap_file.stat().st_size > 0:
+                with nmap_file.open(encoding="utf-8") as f:
+                    nmap_content = f.read().strip()
+                    if nmap_content:
+                        scan_data_parts.append(f"=== ESCANEO DE PUERTOS (NMAP) ===\n{nmap_content}")
+
+            # Nuclei vulnerabilities data
+            nuclei_file = output_dir / domain / "vulnerabilities" / "nuclei_results.json"
+            if nuclei_file.exists() and nuclei_file.stat().st_size > 0:
+                with nuclei_file.open(encoding="utf-8") as f:
+                    nuclei_content = f.read().strip()
+                    if nuclei_content:
+                        scan_data_parts.append(f"=== VULNERABILIDADES (NUCLEI) ===\n{nuclei_content}")
+
+            # Web assets data
+            httpx_file = output_dir / domain / "web" / "httpx_live.txt"
+            if httpx_file.exists() and httpx_file.stat().st_size > 0:
+                with httpx_file.open(encoding="utf-8") as f:
+                    httpx_content = f.read().strip()
+                    if httpx_content:
+                        scan_data_parts.append(f"=== ACTIVOS WEB ACTIVOS (HTTPX) ===\n{httpx_content}")
+
+            if scan_data_parts:
+                scan_data = "\n\n".join(scan_data_parts)
+
+                # Generate AI summary
+                ai_summary = get_gemini_summary(gemini_api_key, scan_data)
+
+                if ai_summary:
+                    # Print summary to console
+                    logger.info("=" * 80)
+                    logger.info(f"RESUMEN EJECUTIVO DE IA PARA {domain.upper()}")
+                    logger.info("=" * 80)
+                    print(ai_summary)
+                    logger.info("=" * 80)
+
+                    # Save summary to file
+                    reports_dir = output_dir / "reports"
+                    reports_dir.mkdir(parents=True, exist_ok=True)
+                    summary_file = reports_dir / f"{domain}_summary_ia.md"
+
+                    with summary_file.open("w", encoding="utf-8") as f:
+                        f.write(f"# Resumen Ejecutivo de IA - {domain}\n\n")
+                        f.write(ai_summary)
+
+                    logger.success(f"AI summary saved to: {summary_file}")
+                else:
+                    logger.warning(f"Failed to generate AI summary for {domain}")
+            else:
+                logger.warning(f"No scan data available for AI analysis of {domain}")
+        else:
+            logger.info("GEMINI_API_KEY not configured, skipping AI analysis")
+
+        # Análisis con IA usando Google Gemini
+        gemini_api_key = os.getenv("GEMINI_API_KEY")
+        if gemini_api_key:
+            logger.info(f"Iniciando análisis de IA para {domain}...")
+
+            # Leer contenido de archivos de resultados relevantes
+            scan_data_parts = []
+
+            # Subdominios
+            subdomains_file = output_dir / domain / "subdomains" / "all_subdomains.txt"
+            if subdomains_file.exists() and subdomains_file.stat().st_size > 0:
+                with subdomains_file.open("r", encoding="utf-8") as f:
+                    content = f.read().strip()
+                    if content:
+                        scan_data_parts.append(f"=== SUBDOMINIOS ENCONTRADOS ===\n{content}\n")
+
+            # Puertos Nmap
+            nmap_file = output_dir / domain / "ports" / "nmap.txt"
+            if nmap_file.exists() and nmap_file.stat().st_size > 0:
+                with nmap_file.open("r", encoding="utf-8") as f:
+                    content = f.read().strip()
+                    if content:
+                        scan_data_parts.append(f"=== ESCANEO DE PUERTOS (NMAP) ===\n{content}\n")
+
+            # Vulnerabilidades Nuclei
+            nuclei_file = output_dir / domain / "vulnerabilities" / "nuclei_results.json"
+            if nuclei_file.exists() and nuclei_file.stat().st_size > 0:
+                with nuclei_file.open("r", encoding="utf-8") as f:
+                    content = f.read().strip()
+                    if content:
+                        scan_data_parts.append(f"=== VULNERABILIDADES DETECTADAS (NUCLEI) ===\n{content}\n")
+
+            # Hosts web activos
+            httpx_file = output_dir / domain / "web" / "httpx_live.txt"
+            if httpx_file.exists() and httpx_file.stat().st_size > 0:
+                with httpx_file.open("r", encoding="utf-8") as f:
+                    content = f.read().strip()
+                    if content:
+                        scan_data_parts.append(f"=== SERVICIOS WEB ACTIVOS ===\n{content}\n")
+
+            if scan_data_parts:
+                scan_data = "\n".join(scan_data_parts)
+
+                # Generar resumen con IA
+                ai_summary = get_gemini_summary(gemini_api_key, scan_data)
+
+                if ai_summary:
+                    # Mostrar resumen en consola
+                    logger.info("\n" + "=" * 80)
+                    logger.info("🤖 ANÁLISIS DE IA - RESUMEN EJECUTIVO")
+                    logger.info("=" * 80)
+                    print(ai_summary)
+                    logger.info("=" * 80)
+
+                    # Guardar resumen en archivo
+                    reports_dir = output_dir / domain / "reports"
+                    reports_dir.mkdir(exist_ok=True)
+
+                    summary_file = reports_dir / f"{domain}_summary_ia.md"
+                    with summary_file.open("w", encoding="utf-8") as f:
+                        f.write(f"# Análisis de IA - {domain}\n\n")
+                        f.write(ai_summary)
+
+                    logger.info(f"Resumen de IA guardado en: {summary_file}")
+                else:
+                    logger.warning(f"No se pudo generar resumen de IA para {domain}")
+            else:
+                logger.info(f"No hay datos suficientes para análisis de IA en {domain}")
+        else:
+            logger.info("GEMINI_API_KEY no configurada, omitiendo análisis de IA")
+
         logger.success(f"Finished processing for {domain}")
 
     end_time = time.time()

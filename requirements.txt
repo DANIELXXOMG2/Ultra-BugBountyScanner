@@ -1,6 +1,7 @@
 python-dotenv
 colorama
 requests
+google-generativeai
 
 # Development and Quality Tools
 mypy>=1.8.0
