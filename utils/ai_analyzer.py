@@ -42,7 +42,7 @@ def get_gemini_summary(api_key: str, scan_results: str) -> Optional[str]:
         genai.configure(api_key=api_key)
 
         # Seleccionar el modelo optimizado para velocidad y costo
-        model = genai.GenerativeModel("gemini-2.5-flash-lite")
+        model = genai.GenerativeModel("gemini-1.5-flash-latest")
 
         # Prompt de sistema detallado para análisis de ciberseguridad
         system_prompt = """

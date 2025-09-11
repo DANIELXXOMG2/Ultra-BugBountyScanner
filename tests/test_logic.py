@@ -120,16 +120,22 @@ class TestDiscoverWebAssets(unittest.TestCase):
 
     @patch("scanner_main.run_command")
     def test_discover_web_assets_success(self, mock_run_command: Mock) -> None:
-        """Prueba que discover_web_assets funciona correctamente."""
+        """Prueba que discover_web_assets funciona correctamente y genera httpx_urls.txt."""
         with tempfile.TemporaryDirectory() as temp_dir:
             domain = "example.com"
             output_dir = Path(temp_dir)
             subdomains_dir = output_dir / domain / "subdomains"
             subdomains_file = subdomains_dir / "all_subdomains.txt"
+            web_dir = output_dir / domain / "web"
+            httpx_output = web_dir / "httpx_live.txt"
 
             # Crear estructura de directorios y archivo de subdominios
             subdomains_dir.mkdir(parents=True)
+            web_dir.mkdir(parents=True)
             subdomains_file.write_text("sub1.example.com\nsub2.example.com\n")
+
+            # Simular salida de httpx
+            httpx_output.write_text("https://sub1.example.com [200]\nhttps://sub2.example.com [200]\n")
 
             # Configurar mock
             mock_run_command.return_value = (0, "Output", "")
@@ -142,6 +148,15 @@ class TestDiscoverWebAssets(unittest.TestCase):
             # Verificar que el comando contiene httpx
             call_args = mock_run_command.call_args[0][0]
             self.assertIn("httpx", call_args)
+
+            # Verificar que se creó el archivo httpx_urls.txt
+            urls_file = web_dir / "httpx_urls.txt"
+            self.assertTrue(urls_file.exists(), "El archivo httpx_urls.txt debe ser creado")
+
+            # Verificar el contenido del archivo de URLs
+            urls_content = urls_file.read_text().strip().split("\n")
+            expected_urls = ["https://sub1.example.com", "https://sub2.example.com"]
+            self.assertEqual(urls_content, expected_urls, "Las URLs extraídas deben coincidir")
 
     def test_discover_web_assets_missing_subdomains(self) -> None:
         """Prueba que discover_web_assets maneja correctamente archivos faltantes."""
@@ -168,16 +183,16 @@ class TestScanVulnerabilities(unittest.TestCase):
 
     @patch("scanner_main.run_command")
     def test_scan_vulnerabilities_success(self, mock_run_command: Mock) -> None:
-        """Prueba que scan_vulnerabilities funciona correctamente."""
+        """Prueba que scan_vulnerabilities funciona correctamente usando httpx_urls.txt."""
         with tempfile.TemporaryDirectory() as temp_dir:
             domain = "example.com"
             output_dir = Path(temp_dir)
             web_dir = output_dir / domain / "web"
-            httpx_file = web_dir / "httpx_live.txt"
+            urls_file = web_dir / "httpx_urls.txt"
 
-            # Crear estructura de directorios y archivo httpx
+            # Crear estructura de directorios y archivo de URLs
             web_dir.mkdir(parents=True)
-            httpx_file.write_text("https://sub1.example.com\nhttps://sub2.example.com\n")
+            urls_file.write_text("https://sub1.example.com\nhttps://sub2.example.com\n")
 
             # Configurar mock
             mock_run_command.return_value = (0, "Output", "")
@@ -190,12 +205,17 @@ class TestScanVulnerabilities(unittest.TestCase):
             # Verificar que el comando contiene nuclei
             call_args = mock_run_command.call_args[0][0]
             self.assertIn("nuclei", call_args)
+            # Verificar que usa el archivo httpx_urls.txt
+            self.assertIn("httpx_urls.txt", str(call_args))
 
-    def test_scan_vulnerabilities_missing_web_assets(self) -> None:
-        """Prueba que scan_vulnerabilities maneja archivos faltantes."""
+    def test_scan_vulnerabilities_missing_urls_file(self) -> None:
+        """Prueba que scan_vulnerabilities maneja archivos httpx_urls.txt faltantes."""
         with patch("scanner_main.logger") as mock_logger:
             scan_vulnerabilities(self.domain, self.output_dir, quick_mode=False)
-            mock_logger.warning.assert_called_once()
+            # Verificar que se registra una advertencia sobre el archivo faltante
+            mock_logger.warning.assert_called_once_with(
+                f"URLs file not found: {self.output_dir / self.domain / 'web' / 'httpx_urls.txt'}"
+            )
 
 
 class TestDiscordNotifications(unittest.TestCase):

@@ -57,7 +57,7 @@ class ColoredFormatter(logging.Formatter):
         """Format log record with colors."""
         # Nivel de log personalizado "SUCCESS"
         if not hasattr(record, "success"):
-            setattr(record, "success", False)
+            record.success = False
 
         log_level = "SUCCESS" if getattr(record, "success", False) else record.levelname
         color = self.LOG_COLORS.get(log_level, Fore.WHITE)
