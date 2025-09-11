@@ -59,7 +59,7 @@ class ColoredFormatter(logging.Formatter):
         if not hasattr(record, "success"):
             record.success = False
 
-        log_level = "SUCCESS" if getattr(record, "success") else record.levelname
+        log_level = "SUCCESS" if record.success else record.levelname
         color = self.LOG_COLORS.get(log_level, Fore.WHITE)
 
         # Formato del mensaje

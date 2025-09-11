@@ -17,6 +17,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 # Actualizamos la variable PATH para incluir el venv
 ENV PATH="$VENV_PATH/bin:$PATH"
+ENV PYTHONDONTWRITEBYTECODE=1
 
 # Instala paquetes esenciales del sistema
 RUN apt-get update && apt-get install -y --no-install-recommends \
