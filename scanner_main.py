@@ -373,8 +373,8 @@ def main() -> None:
     if webhook_url and webhook_url.strip():
         domains_str = ", ".join(args.domain)
         message = (
-            f"🚀 Escaneo completado para los objetivos: {domains_str}. "
-            f"Duración: {duration} segundos. "
+            f"🚀 Escaneo completado para los objetivos: ` {domains_str} `. "
+            f"**Duración**: {duration} segundos. "
             f"Resultados disponibles en la carpeta `{output_dir.name}`."
         )
 
