@@ -133,7 +133,7 @@ class TestDiscoverWebAssets(unittest.TestCase):
             subdomains_dir.mkdir(parents=True)
             web_dir.mkdir(parents=True)
             subdomains_file.write_text("sub1.example.com\nsub2.example.com\n")
-            
+
             # Simular salida de httpx
             httpx_output.write_text("https://sub1.example.com [200]\nhttps://sub2.example.com [200]\n")
 
@@ -148,11 +148,11 @@ class TestDiscoverWebAssets(unittest.TestCase):
             # Verificar que el comando contiene httpx
             call_args = mock_run_command.call_args[0][0]
             self.assertIn("httpx", call_args)
-            
+
             # Verificar que se creó el archivo httpx_urls.txt
             urls_file = web_dir / "httpx_urls.txt"
             self.assertTrue(urls_file.exists(), "El archivo httpx_urls.txt debe ser creado")
-            
+
             # Verificar el contenido del archivo de URLs
             urls_content = urls_file.read_text().strip().split("\n")
             expected_urls = ["https://sub1.example.com", "https://sub2.example.com"]
