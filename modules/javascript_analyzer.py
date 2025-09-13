@@ -7,8 +7,8 @@ utilizando LinkFinder para descubrir endpoints y rutas ocultas.
 Author: Ultra-BugBountyScanner Team
 """
 
-import subprocess
 from pathlib import Path
+import subprocess
 
 from utils.logger import get_logger
 

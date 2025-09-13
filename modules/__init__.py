@@ -12,11 +12,11 @@ __version__ = "2.3.0"
 __author__ = "Ultra-BugBountyScanner Team"
 
 # Importaciones principales para facilitar el uso
-from .subdomain_scanner import enumerate_subdomains
-from .port_scanner import scan_ports
-from .web_assets_scanner import discover_web_assets
-from .vulnerability_scanner import scan_vulnerabilities
 from .javascript_analyzer import analyze_javascript
+from .port_scanner import scan_ports
+from .subdomain_scanner import enumerate_subdomains
+from .vulnerability_scanner import scan_vulnerabilities
+from .web_assets_scanner import discover_web_assets
 
 __all__ = [
     "enumerate_subdomains",

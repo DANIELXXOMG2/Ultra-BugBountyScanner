@@ -159,6 +159,62 @@ docker exec -it ultra-bugbounty-scanner bash
 docker exec ultra-bugbounty-scanner ./ultra-scanner.sh -d example.com
 ```
 
+### 5. Modos de Ejecución del Contenedor
+
+#### 🔒 Modo Normal (Recomendado)
+```bash
+# Ejecución estándar con usuario no-root
+podman run --rm -it ultra-bugbountyscanner:v2.3
+
+# Con montaje de volumen para resultados
+podman run --rm -it -v $(pwd)/output:/app/output ultra-bugbountyscanner:v2.3
+```
+
+#### 🔐 Modo Privilegiado (Para Instalaciones)
+```bash
+# Acceso con capacidades sudo para instalar paquetes adicionales
+podman run --rm -it ultra-bugbountyscanner:v2.3
+
+# Una vez dentro del contenedor:
+sudo apt update
+sudo apt install vim curl wget  # Ejemplo de instalación
+sudo -l  # Ver permisos disponibles
+```
+
+#### 📋 Comandos Disponibles en el Contenedor
+
+| Comando | Descripción |
+|---------|-------------|
+| `python3 scanner_main.py --help` | Ver ayuda del scanner |
+| `python3 scanner_main.py -d <domain>` | Escanear un dominio |
+| `sudo apt install <paquete>` | Instalar paquetes adicionales |
+| `sudo -l` | Ver permisos sudo disponibles |
+| `neofetch` | Información del sistema |
+| `bat <archivo>` | Ver archivos con resaltado |
+
+#### ⚠️ Consideraciones de Seguridad
+
+- **Usuario scanner**: Ejecuta con permisos limitados por defecto
+- **Acceso sudo**: Disponible sin contraseña para instalaciones
+- **Principio de menor privilegio**: Solo usar sudo cuando sea necesario
+- **Aislamiento**: El contenedor mantiene aislamiento del sistema host
+
+#### 💡 Casos de Uso Comunes
+
+```bash
+# Instalar herramientas adicionales de reconocimiento
+sudo apt install dnsutils whois traceroute
+
+# Instalar editores de texto
+sudo apt install vim nano emacs
+
+# Instalar herramientas de red
+sudo apt install netcat-openbsd tcpdump wireshark-common
+
+# Instalar utilidades de desarrollo
+sudo apt install git curl wget unzip
+```
+
 ## 🪟 Instalación en Windows/WSL
 
 ### Opción 1: Script Automatizado (Recomendado)

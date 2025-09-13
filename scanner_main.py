@@ -12,8 +12,13 @@ import time
 # Removed typing import as we use built-in list annotation
 from dotenv import load_dotenv
 
+from modules.bucket_scanner import scan_buckets
 from modules.javascript_analyzer import analyze_javascript
+from modules.parameter_fuzzer import fuzz_parameters
 from modules.port_scanner import scan_ports
+
+# Importar nuevas funciones de escaneo v2.3
+from modules.secrets_scanner import scan_secrets
 
 # Importar funciones de escaneo desde los módulos
 from modules.subdomain_scanner import enumerate_subdomains
@@ -40,7 +45,7 @@ def setup_directories(output_dir: Path, domains: list[str]) -> bool:
         for domain in domains:
             domain_dir = output_dir / domain
             # Crear subdirectorios para cada fase del escaneo
-            subdirs = ["subdomains", "ports", "web", "content", "vulnerabilities", "screenshots", "logs", "javascript"]
+            subdirs = ["subdomains", "ports", "web", "content", "vulnerabilities", "screenshots", "logs", "javascript", "secrets", "buckets", "parameters"]
             for subdir in subdirs:
                 (domain_dir / subdir).mkdir(parents=True, exist_ok=True)
 
@@ -73,7 +78,7 @@ def setup_directories(output_dir: Path, domains: list[str]) -> bool:
 def main() -> None:
     """Main function."""
     parser = argparse.ArgumentParser(
-        description="Ultra-BugBountyScanner v2.2 - Advanced Bug Bounty Reconnaissance Tool",
+        description="Ultra-BugBountyScanner v2.3 - Advanced Bug Bounty Reconnaissance Tool with Secrets, Buckets & Parameter Fuzzing",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""Examples:
   python3 scanner_main.py example.com
@@ -148,6 +153,12 @@ For more information, visit: https://github.com/danielxxomg2/Ultra-BugBountyScan
         scan_vulnerabilities(domain, output_dir, args.quick)
         analyze_javascript(domain, output_dir)
 
+        # Nuevas fases de escaneo v2.3
+        logger.info(f"🔍 Iniciando fases avanzadas de escaneo para {domain}...")
+        scan_secrets(domain, output_dir)
+        scan_buckets(domain, output_dir)
+        fuzz_parameters(domain, output_dir)
+
         # Flujo Proactivo v2.2: Alertas en tiempo real después de vulnerabilidades
         gemini_api_key = os.getenv("GEMINI_API_KEY")
         nuclei_file = output_dir / domain / "vulnerabilities" / "nuclei_results.json"
@@ -218,6 +229,30 @@ For more information, visit: https://github.com/danielxxomg2/Ultra-BugBountyScan
                     javascript_content = f.read().strip()
                     if javascript_content:
                         scan_data_parts.append(f"=== ANÁLISIS DE JAVASCRIPT (LINKFINDER) ===\n{javascript_content}")
+
+            # Datos de escaneo de secretos v2.3
+            secrets_file = output_dir / domain / "secrets" / "trufflehog_results.json"
+            if secrets_file.exists() and secrets_file.stat().st_size > 0:
+                with secrets_file.open(encoding="utf-8") as f:
+                    secrets_content = f.read().strip()
+                    if secrets_content:
+                        scan_data_parts.append(f"=== ESCANEO DE SECRETOS (TRUFFLEHOG) ===\n{secrets_content}")
+
+            # Datos de escaneo de buckets v2.3
+            buckets_file = output_dir / domain / "buckets" / "s3scanner_results.txt"
+            if buckets_file.exists() and buckets_file.stat().st_size > 0:
+                with buckets_file.open(encoding="utf-8") as f:
+                    buckets_content = f.read().strip()
+                    if buckets_content:
+                        scan_data_parts.append(f"=== ESCANEO DE BUCKETS S3 (S3SCANNER) ===\n{buckets_content}")
+
+            # Datos de fuzzing de parámetros v2.3
+            parameters_file = output_dir / domain / "parameters" / "arjun_results.json"
+            if parameters_file.exists() and parameters_file.stat().st_size > 0:
+                with parameters_file.open(encoding="utf-8") as f:
+                    parameters_content = f.read().strip()
+                    if parameters_content:
+                        scan_data_parts.append(f"=== FUZZING DE PARÁMETROS (ARJUN) ===\n{parameters_content}")
 
             if scan_data_parts:
                 scan_data = "\n\n".join(scan_data_parts)

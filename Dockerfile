@@ -39,7 +39,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Instala dependencias de Python en el entorno virtual
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt && \
-    pip install --no-cache-dir git+https://github.com/GerbenJavado/LinkFinder.git
+    pip install --no-cache-dir git+https://github.com/GerbenJavado/LinkFinder.git && \
+    pip install --no-cache-dir trufflehog s3scanner arjun && \
+    git clone https://github.com/obheda12/GitDorker.git /opt/GitDorker && \
+    pip install --no-cache-dir -r /opt/GitDorker/requirements.txt
 
 # ============================================================================
 # Stage 2: Runtime Environment - Imagen de producción mínima
@@ -57,15 +60,16 @@ ENV DEBIAN_FRONTEND=noninteractive \
     # Importante: El PATH en runtime también debe apuntar al venv
     PATH="/opt/venv/bin:/root/go/bin:/usr/local/bin:$PATH"
 
-# Instala dependencias de ejecución y herramientas de calidad de vida
+# Instala dependencias de ejecución, herramientas de calidad de vida y sudo
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates curl dnsutils nmap masscan jq parallel python3 ssh libpcap0.8 \
-    neofetch bat micro \
+    neofetch bat micro sudo \
     && rm -rf /var/lib/apt/lists/*
 
-# Copia los binarios de Go y el entorno virtual completo del builder
+# Copia los binarios de Go, el entorno virtual y GitDorker del builder
 COPY --from=builder /root/go/bin/* /usr/local/bin/
 COPY --from=builder $VENV_PATH $VENV_PATH
+COPY --from=builder /opt/GitDorker /opt/GitDorker
 
 # Establece el directorio de trabajo
 WORKDIR /app
@@ -73,15 +77,20 @@ WORKDIR /app
 # Copia los scripts y la configuración de la aplicación
 COPY . .
 
-# Crea el usuario no-root, configura .bashrc y asigna permisos
+# Configurar usuario y permisos con sudo
 RUN useradd -m -s /bin/bash scanner && \
     mkdir -p /app/output && \
     echo "alias cat='bat'" >> /home/scanner/.bashrc && \
     echo "alias ll='ls -alF'" >> /home/scanner/.bashrc && \
     echo "# Ejecutar neofetch al iniciar sesión interactiva" >> /home/scanner/.bashrc && \
     echo "if [[ \$- == *i* ]]; then neofetch; fi" >> /home/scanner/.bashrc && \
+    chmod +x /app/entrypoint.sh && \
     chown -R scanner:scanner /app && \
-    chown scanner:scanner /home/scanner/.bashrc
+    chown scanner:scanner /home/scanner/.bashrc && \
+    # Configurar sudo sin contraseña para el usuario scanner
+    echo "scanner ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers && \
+    # Validar configuración de sudoers
+    visudo -c
 
 # Cambia al usuario no-root
 USER scanner

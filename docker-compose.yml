@@ -1,3 +1,5 @@
+version: '3.8'
+
 services:
   ultra-scanner:
     build:
@@ -7,14 +9,13 @@ services:
     env_file:
       - .env
     
-    # 1. CORRECCIÓN: Apuntamos el volumen a /app/output, que es el directorio correcto.
+    # Mantiene la sesión interactiva viva
+    tty: true
+    
     volumes:
       - ./output:/app/output:rw
-      - ./wordlists:/app/wordlists:ro # 'ro' for read-only
+      - ./wordlists:/app/wordlists:ro
       
-    # Modo interactivo por defecto - sin command para usar entrypoint.sh
-    # Para modo automático: docker-compose run ultra-scanner -d example.com --verbose
-    # 3. CORRECCIÓN: Se añaden servidores DNS para mejorar la resolución de Nmap.
     dns:
       - 8.8.8.8
       - 1.1.1.1
@@ -22,7 +23,6 @@ services:
     security_opt:
       - no-new-privileges:true
       
-    # 4. CORRECCIÓN: Se cambia la política de reinicio a "no".
     restart: "no"
 
     networks:
@@ -31,3 +31,4 @@ services:
 networks:
   scanner-network:
     driver: bridge
+
