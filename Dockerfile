@@ -39,7 +39,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Instala dependencias de Python en el entorno virtual
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt && \
-    pip install --no-cache-dir linkfinder
+    pip install --no-cache-dir git+https://github.com/GerbenJavado/LinkFinder.git
 
 # ============================================================================
 # Stage 2: Runtime Environment - Imagen de producción mínima
@@ -59,8 +59,8 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 # Instala dependencias de ejecución y herramientas de calidad de vida
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates curl dnsutils nmap masscan jq parallel python3 libpcap0.8 \
-    fastfetch bat micro \
+    ca-certificates curl dnsutils nmap masscan jq parallel python3 ssh libpcap0.8 \
+    neofetch bat micro \
     && rm -rf /var/lib/apt/lists/*
 
 # Copia los binarios de Go y el entorno virtual completo del builder
@@ -78,8 +78,8 @@ RUN useradd -m -s /bin/bash scanner && \
     mkdir -p /app/output && \
     echo "alias cat='bat'" >> /home/scanner/.bashrc && \
     echo "alias ll='ls -alF'" >> /home/scanner/.bashrc && \
-    echo "# Ejecutar fastfetch al iniciar sesión interactiva" >> /home/scanner/.bashrc && \
-    echo "if [[ \$- == *i* ]]; then fastfetch; fi" >> /home/scanner/.bashrc && \
+    echo "# Ejecutar neofetch al iniciar sesión interactiva" >> /home/scanner/.bashrc && \
+    echo "if [[ \$- == *i* ]]; then neofetch; fi" >> /home/scanner/.bashrc && \
     chown -R scanner:scanner /app && \
     chown scanner:scanner /home/scanner/.bashrc
 

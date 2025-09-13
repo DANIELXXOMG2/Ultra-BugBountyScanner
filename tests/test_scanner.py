@@ -211,6 +211,104 @@ class TestScannerScript(unittest.TestCase):
                 self.skipTest("Python not available for testing")
 
 
+class TestModularStructure(unittest.TestCase):
+    """
+    Test cases for modular structure functionality
+    """
+
+    def test_modules_directory_exists(self) -> None:
+        """Test that modules directory exists"""
+        modules_path = Path(__file__).parent.parent / "modules"
+        self.assertTrue(modules_path.exists(), "modules directory not found")
+        self.assertTrue(modules_path.is_dir(), "modules is not a directory")
+
+    def test_modules_init_exists(self) -> None:
+        """Test that modules/__init__.py exists"""
+        init_path = Path(__file__).parent.parent / "modules" / "__init__.py"
+        self.assertTrue(init_path.exists(), "modules/__init__.py not found")
+
+    def test_subdomain_scanner_module_exists(self) -> None:
+        """Test that subdomain_scanner module exists and contains enumerate_subdomains function"""
+        module_path = Path(__file__).parent.parent / "modules" / "subdomain_scanner.py"
+        self.assertTrue(module_path.exists(), "modules/subdomain_scanner.py not found")
+
+        with module_path.open(encoding="utf-8") as f:
+            content = f.read()
+
+        self.assertIn("def enumerate_subdomains(", content, "enumerate_subdomains function not found")
+        self.assertIn("subfinder", content.lower(), "subfinder integration not found")
+        self.assertIn("amass", content.lower(), "amass integration not found")
+
+    def test_port_scanner_module_exists(self) -> None:
+        """Test that port_scanner module exists and contains scan_ports function"""
+        module_path = Path(__file__).parent.parent / "modules" / "port_scanner.py"
+        self.assertTrue(module_path.exists(), "modules/port_scanner.py not found")
+
+        with module_path.open(encoding="utf-8") as f:
+            content = f.read()
+
+        self.assertIn("def scan_ports(", content, "scan_ports function not found")
+        self.assertIn("naabu", content.lower(), "naabu integration not found")
+        self.assertIn("nmap", content.lower(), "nmap integration not found")
+
+    def test_web_assets_scanner_module_exists(self) -> None:
+        """Test that web_assets_scanner module exists and contains discover_web_assets function"""
+        module_path = Path(__file__).parent.parent / "modules" / "web_assets_scanner.py"
+        self.assertTrue(module_path.exists(), "modules/web_assets_scanner.py not found")
+
+        with module_path.open(encoding="utf-8") as f:
+            content = f.read()
+
+        self.assertIn("def discover_web_assets(", content, "discover_web_assets function not found")
+        self.assertIn("httpx", content.lower(), "httpx integration not found")
+
+    def test_vulnerability_scanner_module_exists(self) -> None:
+        """Test that vulnerability_scanner module exists and contains scan_vulnerabilities function"""
+        module_path = Path(__file__).parent.parent / "modules" / "vulnerability_scanner.py"
+        self.assertTrue(module_path.exists(), "modules/vulnerability_scanner.py not found")
+
+        with module_path.open(encoding="utf-8") as f:
+            content = f.read()
+
+        self.assertIn("def scan_vulnerabilities(", content, "scan_vulnerabilities function not found")
+        self.assertIn("nuclei", content.lower(), "nuclei integration not found")
+
+    def test_scanner_main_imports_modules(self) -> None:
+        """Test that scanner_main.py imports from the new modules"""
+        script_path = Path(__file__).parent.parent / "scanner_main.py"
+        self.assertTrue(script_path.exists(), "scanner_main.py not found")
+
+        with script_path.open(encoding="utf-8") as f:
+            content = f.read()
+
+        # Check for imports from modules
+        self.assertIn(
+            "from modules.subdomain_scanner import enumerate_subdomains",
+            content,
+            "subdomain_scanner import not found"
+        )
+        self.assertIn(
+            "from modules.port_scanner import scan_ports",
+            content,
+            "port_scanner import not found"
+        )
+        self.assertIn(
+            "from modules.web_assets_scanner import discover_web_assets",
+            content,
+            "web_assets_scanner import not found"
+        )
+        self.assertIn(
+            "from modules.vulnerability_scanner import scan_vulnerabilities",
+            content,
+            "vulnerability_scanner import not found"
+        )
+        self.assertIn(
+            "from modules.javascript_analyzer import analyze_javascript",
+            content,
+            "javascript_analyzer import not found"
+        )
+
+
 class TestJavaScriptAnalysis(unittest.TestCase):
     """
     Test cases for JavaScript analysis functionality
@@ -231,23 +329,23 @@ class TestJavaScriptAnalysis(unittest.TestCase):
             shutil.rmtree(self.test_dir)
 
     def test_analyze_javascript_function_exists(self) -> None:
-        """Test that analyze_javascript function exists in scanner_main.py"""
-        script_path = Path(__file__).parent.parent / "scanner_main.py"
-        self.assertTrue(script_path.exists(), "scanner_main.py not found")
-        
-        with script_path.open(encoding="utf-8") as f:
+        """Test that analyze_javascript function exists in modules/javascript_analyzer.py"""
+        module_path = Path(__file__).parent.parent / "modules" / "javascript_analyzer.py"
+        self.assertTrue(module_path.exists(), "modules/javascript_analyzer.py not found")
+
+        with module_path.open(encoding="utf-8") as f:
             content = f.read()
-        
+
         self.assertIn("def analyze_javascript(", content, "analyze_javascript function not found")
         self.assertIn("linkfinder", content.lower(), "LinkFinder integration not found")
 
     def test_javascript_directory_creation(self) -> None:
         """Test that javascript directory is created in setup_directories"""
         script_path = Path(__file__).parent.parent / "scanner_main.py"
-        
+
         with script_path.open(encoding="utf-8") as f:
             content = f.read()
-        
+
         # Check that 'javascript' is in the subdirectories list
         self.assertIn('"javascript"', content, "javascript directory not in setup_directories")
 
@@ -260,23 +358,23 @@ class TestJavaScriptAnalysis(unittest.TestCase):
             "https://test.example.com/app.js",
             "https://api.example.com/v1/data"
         ]
-        
+
         with httpx_file.open("w", encoding="utf-8") as f:
             f.write("\n".join(test_urls))
-        
+
         self.assertTrue(httpx_file.exists(), "Test httpx_urls.txt file not created")
-        
+
         # Verify file content
         with httpx_file.open(encoding="utf-8") as f:
             content = f.read().strip().split("\n")
-        
+
         self.assertEqual(len(content), 3, "Incorrect number of URLs in test file")
         self.assertIn("https://example.com", content, "Test URL not found")
 
     def test_linkfinder_results_file_creation(self) -> None:
         """Test that linkfinder_results.txt file structure is correct"""
         results_file = self.javascript_dir / "linkfinder_results.txt"
-        
+
         # Create a mock results file
         test_results = [
             "=== LinkFinder Results for https://example.com ===",
@@ -286,26 +384,26 @@ class TestJavaScriptAnalysis(unittest.TestCase):
             "/assets/config.json",
             "/api/auth/login"
         ]
-        
+
         with results_file.open("w", encoding="utf-8") as f:
             f.write("\n".join(test_results))
-        
+
         self.assertTrue(results_file.exists(), "LinkFinder results file not created")
-        
+
         # Verify file structure
         with results_file.open(encoding="utf-8") as f:
             content = f.read()
-        
+
         self.assertIn("=== LinkFinder Results for", content, "Results header format incorrect")
         self.assertIn("/api/", content, "API endpoints not found in results")
 
     def test_linkfinder_integration_in_gemini_analysis(self) -> None:
         """Test that LinkFinder results are integrated into Gemini analysis"""
         script_path = Path(__file__).parent.parent / "scanner_main.py"
-        
+
         with script_path.open(encoding="utf-8") as f:
             content = f.read()
-        
+
         # Check that linkfinder_results.txt is read for Gemini analysis
         self.assertIn("linkfinder_results.txt", content, "LinkFinder results not integrated with Gemini")
         self.assertIn("ANÁLISIS DE JAVASCRIPT (LINKFINDER)", content, "JavaScript analysis header not found")
@@ -465,6 +563,7 @@ def run_functionality_tests() -> bool:
     suite.addTest(unittest.makeSuite(TestDockerIntegration))
     suite.addTest(unittest.makeSuite(TestConfigurationFiles))
     suite.addTest(unittest.makeSuite(TestScannerScript))
+    suite.addTest(unittest.makeSuite(TestModularStructure))
     suite.addTest(unittest.makeSuite(TestJavaScriptAnalysis))
     suite.addTest(unittest.makeSuite(TestInstallationScripts))
     suite.addTest(unittest.makeSuite(TestPerformanceMetrics))
