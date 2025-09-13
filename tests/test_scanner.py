@@ -299,16 +299,16 @@ class TestInstallationScripts(unittest.TestCase):
     Test cases for installation scripts
     """
 
-    def test_scoop_installer_exists(self) -> None:
-        """Test that Scoop installer script exists"""
-        installer_path = Path(__file__).parent.parent / "install-scoop.ps1"
-        self.assertTrue(installer_path.exists(), "install-scoop.ps1 not found")
+    def test_docker_compose_exists(self) -> None:
+        """Test that Docker Compose configuration exists"""
+        compose_path = Path(__file__).parent.parent / "docker-compose.yml"
+        self.assertTrue(compose_path.exists(), "docker-compose.yml not found")
 
-    def test_scoop_installer_syntax(self) -> None:
-        """Test basic PowerShell syntax in Scoop installer"""
-        installer_path = Path(__file__).parent.parent / "install-scoop.ps1"
-        if installer_path.exists():
-            with installer_path.open(encoding="utf-8") as f:
+    def test_docker_compose_syntax(self) -> None:
+        """Test basic YAML syntax in Docker Compose file"""
+        compose_path = Path(__file__).parent.parent / "docker-compose.yml"
+        if compose_path.exists():
+            with compose_path.open(encoding="utf-8") as f:
                 content = f.read()
 
             # Basic PowerShell syntax checks

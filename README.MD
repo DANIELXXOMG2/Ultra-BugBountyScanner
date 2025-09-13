@@ -114,7 +114,7 @@ graph TB
 curl -sSL https://raw.githubusercontent.com/danielxxomg2/Ultra-BugBountyScanner/main/install.sh | bash
 
 # Windows PowerShell (como Administrador)
-iwr -useb https://raw.githubusercontent.com/danielxxomg2/Ultra-BugBountyScanner/main/install-scoop.ps1 | iex
+# Manual installation required - see Docker setup below
 ```
 
 ## 🐳 Instalación con Docker
@@ -166,7 +166,7 @@ docker exec ultra-bugbounty-scanner ./ultra-scanner.sh -d example.com
 ```powershell
 # Ejecutar como Administrador
 Set-ExecutionPolicy Bypass -Scope Process -Force
-.\install-scoop.ps1
+# Use Docker installation method instead
 ```
 
 ### Opción 2: Instalación Manual
