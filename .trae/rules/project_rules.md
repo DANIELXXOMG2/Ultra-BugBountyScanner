@@ -1,15 +1,19 @@
-# === Ultra-BugBountyScanner Project Rules ===
+# === Ultra-BugBountyScanner Project Rules v2.1 ===
 
 ## 1. Python & Dependencies
 - El proyecto usa Python 3.11+.
-- Todas las dependencias de producción se gestionan en `requirements.txt`.
-- Todas las dependencias de desarrollo y herramientas de calidad se gestionan y configuran a través de `pyproject.toml`.
+- Las dependencias de producción se gestionan en `requirements.txt`.
+- Las dependencias de desarrollo y herramientas de calidad se gestionan y configuran a través de `pyproject.toml`.
 
-## 2. Code Style & Formatting
-- `Ruff` es la única fuente de verdad para el linting y el formato.
-- El formato de código sigue el estándar de `Black`, impuesto por `ruff format`.
-- Longitud de línea máxima: 120 caracteres.
-- Todas las importaciones deben ser ordenadas automáticamente por `ruff`.
+## 2. Sistema de Calidad de Código (Dos Niveles)
+- **Nivel 1 (Desarrollo Diario): `Ruff`**
+  - `Ruff` es la única fuente de verdad para el linting y el formateo en tiempo real.
+  - El formato de código sigue el estándar de `Black`, impuesto por `ruff format`.
+  - Longitud de línea máxima: 120 caracteres.
+  - Todas las importaciones deben ser ordenadas automáticamente por `ruff`.
+- **Nivel 2 (Auditoría Profunda): `Pylint`**
+  - `Pylint` se utiliza exclusivamente para auditorías de calidad de código más profundas, **no para estilo**.
+  - Su configuración debe estar enfocada en detectar "code smells" que Ruff no cubre, principalmente la **lógica duplicada (`duplicate-code`)**.
 
 ## 3. Testing Framework
 - Las pruebas unitarias se escriben con el módulo `unittest` de la librería estándar.

@@ -311,10 +311,10 @@ class TestInstallationScripts(unittest.TestCase):
             with compose_path.open(encoding="utf-8") as f:
                 content = f.read()
 
-            # Basic PowerShell syntax checks
-            self.assertIn("param(", content, "PowerShell parameters not found")
-            self.assertIn("function ", content, "PowerShell functions not found")
-            self.assertIn("Write-Host", content, "PowerShell output commands not found")
+            # Basic YAML syntax checks for Docker Compose
+            self.assertIn("services:", content, "Docker Compose services section not found")
+            self.assertIn("ultra-scanner:", content, "Ultra scanner service not found")
+            self.assertIn("build:", content, "Build configuration not found")
 
 
 class TestPerformanceMetrics(unittest.TestCase):

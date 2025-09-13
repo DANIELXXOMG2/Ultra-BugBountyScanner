@@ -213,7 +213,9 @@ class TestScanVulnerabilities(unittest.TestCase):
         with patch("scanner_main.logger") as mock_logger:
             scan_vulnerabilities(self.domain, self.output_dir, quick_mode=False)
             # Verificar que se registra una advertencia sobre el archivo faltante
-            mock_logger.warning.assert_called_once_with(f"URLs file not found: {self.output_dir / self.domain / 'web' / 'httpx_urls.txt'}")
+            mock_logger.warning.assert_called_once_with(
+                f"URLs file not found: {self.output_dir / self.domain / 'web' / 'httpx_urls.txt'}"
+            )
 
 
 class TestDiscordNotifications(unittest.TestCase):

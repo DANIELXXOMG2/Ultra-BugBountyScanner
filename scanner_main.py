@@ -12,7 +12,7 @@ import time
 # Removed typing import as we use built-in list annotation
 from dotenv import load_dotenv
 
-from utils.ai_analyzer import get_gemini_summary
+from utils.ai_analyzer import get_gemini_alert, get_gemini_summary
 from utils.logger import get_logger
 from utils.notifications import send_discord_notification
 from utils.runner import run_command
@@ -266,6 +266,33 @@ def main() -> None:
 
     args = parser.parse_args()
 
+    # Validación de entrada directa (reemplaza input_sanitizer.py)
+    import re
+
+    # Validar dominios
+    domain_pattern = re.compile(
+        r"^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)"
+        r"+[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$"
+    )
+    ip_pattern = re.compile(
+        r"^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}"
+        r"(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$"
+    )
+
+    for domain in args.domain:
+        domain_clean = domain.lower().strip()
+        if not (domain_pattern.match(domain_clean) or ip_pattern.match(domain_clean)):
+            logger.error(f"❌ SECURITY: Invalid domain format: {domain}")
+            return
+        if len(domain_clean) > 253:  # RFC limit
+            logger.error(f"❌ SECURITY: Domain too long: {domain}")
+            return
+
+    # Validar output path
+    if ".." in args.output:
+        logger.error("❌ SECURITY: Directory traversal detected in output path")
+        return
+
     # Configurar nivel del logger
     if args.verbose or os.getenv("VERBOSE", "false").lower() == "true":
         logger.setLevel("DEBUG")
@@ -285,20 +312,49 @@ def main() -> None:
 
     for domain in args.domain:
         logger.info(f"Processing target: {domain}")
+
+        # Flujo Proactivo v2.1: Notificación de inicio
+        webhook_url = os.getenv("DISCORD_WEBHOOK_URL")
+        if webhook_url and webhook_url.strip():
+            start_message = f"🚀 Escaneo iniciado para {domain}..."
+            send_discord_notification(webhook_url, start_message)
+
         enumerate_subdomains(domain, output_dir)
         scan_ports(domain, output_dir, args.quick)
         discover_web_assets(domain, output_dir)
         scan_vulnerabilities(domain, output_dir, args.quick)
 
-        # AI Analysis Phase
+        # Flujo Proactivo v2.1: Alertas en tiempo real después de vulnerabilidades
         gemini_api_key = os.getenv("GEMINI_API_KEY")
-        if gemini_api_key and gemini_api_key.strip():
-            logger.info(f"Starting AI analysis for {domain}...")
+        nuclei_file = output_dir / domain / "vulnerabilities" / "nuclei_results.json"
 
-            # Collect scan data from relevant files
+        if nuclei_file.exists() and nuclei_file.stat().st_size > 0:
+            try:
+                import json
+
+                with nuclei_file.open(encoding="utf-8") as f:
+                    nuclei_data = json.load(f)
+
+                # Procesar cada hallazgo individualmente para alertas inmediatas
+                if isinstance(nuclei_data, list) and nuclei_data:
+                    for finding in nuclei_data:
+                        if gemini_api_key and gemini_api_key.strip():
+                            # Generar alerta concisa para cada hallazgo
+                            alert = get_gemini_alert(gemini_api_key, json.dumps(finding, indent=2))
+                            if alert and webhook_url and webhook_url.strip():
+                                alert_message = f"🚨 Alerta Crítica en {domain}: {alert}"
+                                send_discord_notification(webhook_url, alert_message)
+            except (json.JSONDecodeError, Exception) as e:
+                logger.warning(f"Error processing nuclei results for alerts: {e}")
+
+        # Flujo Proactivo v2.1: Reporte final por dominio
+        if gemini_api_key and gemini_api_key.strip():
+            logger.info(f"Generating final report for {domain}...")
+
+            # Recopilar datos de escaneo para el reporte final
             scan_data_parts = []
 
-            # Subdomains data
+            # Datos de subdominios
             subdomains_file = output_dir / domain / "subdomains" / "all_subdomains.txt"
             if subdomains_file.exists() and subdomains_file.stat().st_size > 0:
                 with subdomains_file.open(encoding="utf-8") as f:
@@ -306,7 +362,7 @@ def main() -> None:
                     if subdomains_content:
                         scan_data_parts.append(f"=== SUBDOMINIOS ENCONTRADOS ===\n{subdomains_content}")
 
-            # Nmap data
+            # Datos de Nmap
             nmap_file = output_dir / domain / "ports" / "nmap.txt"
             if nmap_file.exists() and nmap_file.stat().st_size > 0:
                 with nmap_file.open(encoding="utf-8") as f:
@@ -314,37 +370,21 @@ def main() -> None:
                     if nmap_content:
                         scan_data_parts.append(f"=== ESCANEO DE PUERTOS (NMAP) ===\n{nmap_content}")
 
-            # Nuclei vulnerabilities data
-            nuclei_file = output_dir / domain / "vulnerabilities" / "nuclei_results.json"
+            # Datos de vulnerabilidades Nuclei
             if nuclei_file.exists() and nuclei_file.stat().st_size > 0:
                 with nuclei_file.open(encoding="utf-8") as f:
                     nuclei_content = f.read().strip()
                     if nuclei_content:
                         scan_data_parts.append(f"=== VULNERABILIDADES (NUCLEI) ===\n{nuclei_content}")
 
-            # Web assets data
-            httpx_file = output_dir / domain / "web" / "httpx_live.txt"
-            if httpx_file.exists() and httpx_file.stat().st_size > 0:
-                with httpx_file.open(encoding="utf-8") as f:
-                    httpx_content = f.read().strip()
-                    if httpx_content:
-                        scan_data_parts.append(f"=== ACTIVOS WEB ACTIVOS (HTTPX) ===\n{httpx_content}")
-
             if scan_data_parts:
                 scan_data = "\n\n".join(scan_data_parts)
 
-                # Generate AI summary
+                # Generar resumen ejecutivo completo
                 ai_summary = get_gemini_summary(gemini_api_key, scan_data)
 
                 if ai_summary:
-                    # Print summary to console
-                    logger.info("=" * 80)
-                    logger.info(f"RESUMEN EJECUTIVO DE IA PARA {domain.upper()}")
-                    logger.info("=" * 80)
-                    print(ai_summary)
-                    logger.info("=" * 80)
-
-                    # Save summary to file within domain directory
+                    # Guardar resumen en archivo
                     reports_dir = output_dir / domain / "reports"
                     reports_dir.mkdir(parents=True, exist_ok=True)
                     summary_file = reports_dir / f"{domain}_summary_ia.md"
@@ -354,6 +394,16 @@ def main() -> None:
                         f.write(ai_summary)
 
                     logger.success(f"AI summary saved to: {summary_file}")
+
+                    # Enviar reporte completo a Discord
+                    if webhook_url and webhook_url.strip():
+                        # Truncar el resumen si es muy largo para Discord
+                        summary_preview = ai_summary[:1500] + "..." if len(ai_summary) > 1500 else ai_summary
+                        final_report = (
+                            f"📊 **Reporte Final para {domain}**\n\n{summary_preview}\n\n"
+                            f"📁 Reporte completo guardado en: `{summary_file.name}`"
+                        )
+                        send_discord_notification(webhook_url, final_report)
                 else:
                     logger.warning(f"Failed to generate AI summary for {domain}")
             else:
