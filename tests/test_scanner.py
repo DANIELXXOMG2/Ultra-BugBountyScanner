@@ -211,6 +211,106 @@ class TestScannerScript(unittest.TestCase):
                 self.skipTest("Python not available for testing")
 
 
+class TestJavaScriptAnalysis(unittest.TestCase):
+    """
+    Test cases for JavaScript analysis functionality
+    """
+
+    def setUp(self) -> None:
+        """Set up test environment"""
+        self.test_dir = tempfile.mkdtemp()
+        self.output_dir = Path(self.test_dir)
+        self.web_dir = self.output_dir / "web"
+        self.javascript_dir = self.output_dir / "javascript"
+        self.web_dir.mkdir(parents=True, exist_ok=True)
+        self.javascript_dir.mkdir(parents=True, exist_ok=True)
+
+    def tearDown(self) -> None:
+        """Clean up test environment"""
+        if Path(self.test_dir).exists():
+            shutil.rmtree(self.test_dir)
+
+    def test_analyze_javascript_function_exists(self) -> None:
+        """Test that analyze_javascript function exists in scanner_main.py"""
+        script_path = Path(__file__).parent.parent / "scanner_main.py"
+        self.assertTrue(script_path.exists(), "scanner_main.py not found")
+        
+        with script_path.open(encoding="utf-8") as f:
+            content = f.read()
+        
+        self.assertIn("def analyze_javascript(", content, "analyze_javascript function not found")
+        self.assertIn("linkfinder", content.lower(), "LinkFinder integration not found")
+
+    def test_javascript_directory_creation(self) -> None:
+        """Test that javascript directory is created in setup_directories"""
+        script_path = Path(__file__).parent.parent / "scanner_main.py"
+        
+        with script_path.open(encoding="utf-8") as f:
+            content = f.read()
+        
+        # Check that 'javascript' is in the subdirectories list
+        self.assertIn('"javascript"', content, "javascript directory not in setup_directories")
+
+    def test_httpx_urls_file_handling(self) -> None:
+        """Test handling of httpx_urls.txt file"""
+        # Create a mock httpx_urls.txt file
+        httpx_file = self.web_dir / "httpx_urls.txt"
+        test_urls = [
+            "https://example.com",
+            "https://test.example.com/app.js",
+            "https://api.example.com/v1/data"
+        ]
+        
+        with httpx_file.open("w", encoding="utf-8") as f:
+            f.write("\n".join(test_urls))
+        
+        self.assertTrue(httpx_file.exists(), "Test httpx_urls.txt file not created")
+        
+        # Verify file content
+        with httpx_file.open(encoding="utf-8") as f:
+            content = f.read().strip().split("\n")
+        
+        self.assertEqual(len(content), 3, "Incorrect number of URLs in test file")
+        self.assertIn("https://example.com", content, "Test URL not found")
+
+    def test_linkfinder_results_file_creation(self) -> None:
+        """Test that linkfinder_results.txt file structure is correct"""
+        results_file = self.javascript_dir / "linkfinder_results.txt"
+        
+        # Create a mock results file
+        test_results = [
+            "=== LinkFinder Results for https://example.com ===",
+            "/api/v1/users",
+            "/admin/dashboard",
+            "=== LinkFinder Results for https://test.example.com ===",
+            "/assets/config.json",
+            "/api/auth/login"
+        ]
+        
+        with results_file.open("w", encoding="utf-8") as f:
+            f.write("\n".join(test_results))
+        
+        self.assertTrue(results_file.exists(), "LinkFinder results file not created")
+        
+        # Verify file structure
+        with results_file.open(encoding="utf-8") as f:
+            content = f.read()
+        
+        self.assertIn("=== LinkFinder Results for", content, "Results header format incorrect")
+        self.assertIn("/api/", content, "API endpoints not found in results")
+
+    def test_linkfinder_integration_in_gemini_analysis(self) -> None:
+        """Test that LinkFinder results are integrated into Gemini analysis"""
+        script_path = Path(__file__).parent.parent / "scanner_main.py"
+        
+        with script_path.open(encoding="utf-8") as f:
+            content = f.read()
+        
+        # Check that linkfinder_results.txt is read for Gemini analysis
+        self.assertIn("linkfinder_results.txt", content, "LinkFinder results not integrated with Gemini")
+        self.assertIn("ANÁLISIS DE JAVASCRIPT (LINKFINDER)", content, "JavaScript analysis header not found")
+
+
 class TestSecurityValidation(unittest.TestCase):
     """
     Test cases for security validation
@@ -365,6 +465,7 @@ def run_functionality_tests() -> bool:
     suite.addTest(unittest.makeSuite(TestDockerIntegration))
     suite.addTest(unittest.makeSuite(TestConfigurationFiles))
     suite.addTest(unittest.makeSuite(TestScannerScript))
+    suite.addTest(unittest.makeSuite(TestJavaScriptAnalysis))
     suite.addTest(unittest.makeSuite(TestInstallationScripts))
     suite.addTest(unittest.makeSuite(TestPerformanceMetrics))
 

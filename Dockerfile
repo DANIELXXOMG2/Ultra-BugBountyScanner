@@ -38,7 +38,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Instala dependencias de Python en el entorno virtual
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt && \
+    pip install --no-cache-dir linkfinder
 
 # ============================================================================
 # Stage 2: Runtime Environment - Imagen de producción mínima
