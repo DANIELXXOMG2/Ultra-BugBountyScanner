@@ -5,10 +5,10 @@ Pruebas basadas en propiedades usando Hypothesis para las funciones principales.
 Author: danielxxomg2
 """
 
+# Importar la función a testear
+import contextlib
 from pathlib import Path
 import shutil
-
-# Importar la función a testear
 import sys
 import tempfile
 import unittest
@@ -18,7 +18,7 @@ from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from scanner_main import discover_web_assets, scan_vulnerabilities, setup_directories
+from scanner_main import discover_web_assets, main, scan_vulnerabilities, setup_directories
 from utils.notifications import send_discord_notification
 
 
@@ -268,6 +268,102 @@ class TestDiscordNotifications(unittest.TestCase):
         result = send_discord_notification(webhook_url, message)
 
         self.assertFalse(result)
+
+
+class TestMainFunction(unittest.TestCase):
+    """Pruebas para la función main y sanitización de entradas."""
+
+    @patch("scanner_main.setup_directories")
+    @patch("scanner_main.enumerate_subdomains")
+    @patch("scanner_main.scan_ports")
+    @patch("scanner_main.discover_web_assets")
+    @patch("scanner_main.scan_vulnerabilities")
+    @patch("sys.argv", ["scanner_main.py", "example.com"])
+    def test_main_valid_domain(self, _mock_scan_vuln, _mock_discover, _mock_scan_ports, _mock_enum, mock_setup):
+        """Prueba que main funciona con un dominio válido."""
+        mock_setup.return_value = True
+
+        # No debería lanzar excepción
+        with contextlib.suppress(SystemExit):
+            main()
+
+    @patch("sys.argv", ["scanner_main.py", "invalid..domain"])
+    @patch("scanner_main.logger")
+    def test_main_invalid_domain_format(self, mock_logger):
+        """Prueba que main rechaza dominios con formato inválido."""
+        with contextlib.suppress(SystemExit):
+            main()
+
+        # Verificar que se registró el error de seguridad
+        mock_logger.error.assert_called_with(
+            "❌ SECURITY: Invalid domain format detected: invalid..domain"
+        )
+
+    @patch("sys.argv", ["scanner_main.py", "example.com", "--output", "../malicious"])
+    @patch("scanner_main.logger")
+    def test_main_directory_traversal_detection(self, mock_logger):
+        """Prueba que main detecta intentos de directory traversal."""
+        with contextlib.suppress(SystemExit):
+            main()
+
+        # Verificar que se registró el error de seguridad
+        mock_logger.error.assert_called_with(
+            "❌ SECURITY: Directory traversal detected in output path"
+        )
+
+    @patch("sys.argv", ["scanner_main.py", "sub.example.com", "test-domain.org"])
+    @patch("scanner_main.setup_directories")
+    @patch("scanner_main.enumerate_subdomains")
+    @patch("scanner_main.scan_ports")
+    @patch("scanner_main.discover_web_assets")
+    @patch("scanner_main.scan_vulnerabilities")
+    def test_main_multiple_domains(self, _mock_scan_vuln, _mock_discover, _mock_scan_ports, _mock_enum, mock_setup):
+        """Prueba que main maneja múltiples dominios correctamente."""
+        mock_setup.return_value = True
+
+        with contextlib.suppress(SystemExit):
+            main()
+
+        # Verificar que setup_directories fue llamado con ambos dominios
+        if mock_setup.called:
+            call_args = mock_setup.call_args[0]
+            self.assertIn("sub.example.com", str(call_args))
+            self.assertIn("test-domain.org", str(call_args))
+
+    def test_domain_validation_regex(self):
+        """Prueba el regex de validación de dominios directamente."""
+        import re
+
+        domain_pattern = re.compile(
+            r'^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*$'
+        )
+
+        # Dominios válidos
+        valid_domains = [
+            "example.com",
+            "sub.example.com",
+            "test-domain.org",
+            "a.b.c.d.example.com",
+            "123.example.com"
+        ]
+
+        for domain in valid_domains:
+            self.assertTrue(domain_pattern.match(domain), f"Dominio válido rechazado: {domain}")
+
+        # Dominios inválidos
+        invalid_domains = [
+            "invalid..domain",
+            ".example.com",
+            "example.com.",
+            "ex ample.com",
+            "example.com/path",
+            "http://example.com",
+            "-example.com",
+            "example-.com"
+        ]
+
+        for domain in invalid_domains:
+            self.assertFalse(domain_pattern.match(domain), f"Dominio inválido aceptado: {domain}")
 
 
 if __name__ == "__main__":

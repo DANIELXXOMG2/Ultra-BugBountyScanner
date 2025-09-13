@@ -257,38 +257,47 @@ def scan_vulnerabilities(domain: str, output_dir: Path, quick_mode: bool) -> Non
 
 
 def main() -> None:
-    """Punto de entrada principal del scanner."""
-    parser = argparse.ArgumentParser(description="Ultra-BugBountyScanner v1.1.0 - Python Refactor")
-    parser.add_argument("-d", "--domain", action="append", required=True, help="Target domain(s) to scan.")
-    parser.add_argument("-o", "--output", default=os.getenv("OUTPUT_DIR", "output"), help="Output directory.")
-    parser.add_argument("-q", "--quick", action="store_true", help="Enable quick scan mode.")
-    parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose/debug output.")
+    """Main function."""
+    parser = argparse.ArgumentParser(
+        description="Ultra-BugBountyScanner v2.1 - Advanced Bug Bounty Reconnaissance Tool",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""Examples:
+  python3 scanner_main.py example.com
+  python3 scanner_main.py example.com target2.com --output /tmp/results
+  python3 scanner_main.py example.com --quick --verbose
+
+For more information, visit: https://github.com/danielxxomg2/Ultra-BugBountyScanner
+        """,
+    )
+    parser.add_argument("domain", nargs="+", help="Target domain(s) to scan")
+    parser.add_argument(
+        "-o",
+        "--output",
+        default="./output",
+        help="Output directory (default: ./output)",
+    )
+    parser.add_argument(
+        "-q", "--quick", action="store_true", help="Quick mode (skip intensive tasks)"
+    )
+    parser.add_argument(
+        "-v", "--verbose", action="store_true", help="Enable verbose output"
+    )
 
     args = parser.parse_args()
 
-    # Validación de entrada directa (reemplaza input_sanitizer.py)
+    # Sanitización directa de entradas v2.1
     import re
 
-    # Validar dominios
+    # Validar nombres de dominio con regex
     domain_pattern = re.compile(
-        r"^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)"
-        r"+[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$"
+        r'^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*$'
     )
-    ip_pattern = re.compile(
-        r"^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}"
-        r"(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$"
-    )
-
     for domain in args.domain:
-        domain_clean = domain.lower().strip()
-        if not (domain_pattern.match(domain_clean) or ip_pattern.match(domain_clean)):
-            logger.error(f"❌ SECURITY: Invalid domain format: {domain}")
-            return
-        if len(domain_clean) > 253:  # RFC limit
-            logger.error(f"❌ SECURITY: Domain too long: {domain}")
+        if not domain_pattern.match(domain):
+            logger.error(f"❌ SECURITY: Invalid domain format detected: {domain}")
             return
 
-    # Validar output path
+    # Validar ruta de salida (sin directory traversal)
     if ".." in args.output:
         logger.error("❌ SECURITY: Directory traversal detected in output path")
         return
@@ -333,17 +342,27 @@ def main() -> None:
                 import json
 
                 with nuclei_file.open(encoding="utf-8") as f:
-                    nuclei_data = json.load(f)
+                    content = f.read().strip()
+                    if content:
+                        # Manejar tanto formato de líneas JSON como array JSON
+                        if content.startswith('['):
+                            nuclei_data = json.loads(content)
+                        else:
+                            # Formato JSONL (una línea por hallazgo)
+                            nuclei_data = []
+                            for line in content.split('\n'):
+                                if line.strip():
+                                    nuclei_data.append(json.loads(line))
 
-                # Procesar cada hallazgo individualmente para alertas inmediatas
-                if isinstance(nuclei_data, list) and nuclei_data:
-                    for finding in nuclei_data:
-                        if gemini_api_key and gemini_api_key.strip():
-                            # Generar alerta concisa para cada hallazgo
-                            alert = get_gemini_alert(gemini_api_key, json.dumps(finding, indent=2))
-                            if alert and webhook_url and webhook_url.strip():
-                                alert_message = f"🚨 Alerta Crítica en {domain}: {alert}"
-                                send_discord_notification(webhook_url, alert_message)
+                        # Procesar cada hallazgo individualmente para alertas inmediatas
+                        if nuclei_data:
+                            for finding in nuclei_data:
+                                if gemini_api_key and gemini_api_key.strip():
+                                    # Generar alerta concisa para cada hallazgo
+                                    alert = get_gemini_alert(gemini_api_key, json.dumps(finding, indent=2))
+                                    if alert and webhook_url and webhook_url.strip():
+                                        alert_message = f"🚨 Alerta Crítica en {domain}: {alert}"
+                                        send_discord_notification(webhook_url, alert_message)
             except (json.JSONDecodeError, Exception) as e:
                 logger.warning(f"Error processing nuclei results for alerts: {e}")
 

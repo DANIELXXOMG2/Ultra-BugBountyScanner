@@ -44,64 +44,31 @@ def get_gemini_summary(api_key: str, scan_results: str) -> Optional[str]:
         # Seleccionar el modelo optimizado para velocidad y costo
         model = genai.GenerativeModel("gemini-1.5-flash-latest")
 
-        # Prompt avanzado v2.1 con puntuación de riesgo y vectores de ataque
+        # Prompt avanzado v2.1 según especificaciones
         system_prompt = """
-Actúa como un Analista Experto en Ciberseguridad con más de 10 años de experiencia en Bug Bounty y Pentesting.
-
-Tu tarea es analizar los resultados de un escaneo de reconocimiento y generar un reporte
-    técnico avanzado con puntuación de riesgo, vectores de ataque y recomendaciones tácticas específicas.
-
-FORMATO DE SALIDA REQUERIDO:
+Actúa como un Analista de Ciberseguridad de élite (LPT, OSCP). Tu análisis debe ser técnico,
+preciso y accionable. Analiza los datos brutos de un escaneo y genera un reporte profesional
+en Markdown con este formato estricto:
 
 ## 🛡️ Reporte de Análisis de Seguridad
-### 📊 Puntuación de Riesgo Global: [X]/10
-
+### 📊 Puntuación de Riesgo Global: [Puntuación de 1 a 10]
+---
 ### 🎯 Resumen Ejecutivo
-[Párrafo conciso describiendo el alcance del escaneo, número de subdominios encontrados,
-puertos abiertos y vulnerabilidades detectadas con contexto de riesgo]
-
-### 🚨 Hallazgos Críticos Priorizados
-| Severidad | Vulnerabilidad | Host Afectado | Impacto | Explotabilidad |
-|-----------|----------------|---------------|---------|----------------|
-| [CRITICAL/HIGH/MEDIUM] | [Nombre] | [Host] | [Descripción] | [Facilidad 1-5] |
-
-### ⚔️ Tabla de Vectores de Ataque
-| Vector | Activos Afectados | Técnicas Sugeridas | Herramientas Recomendadas |
-|--------|-------------------|-------------------|---------------------------|
-| [Tipo] | [Lista hosts] | [Técnicas específicas] | [nmap, ffuf, burp, etc.] |
-
-### 🌐 Superficie de Ataque Identificada
-- **Servicios Web Expuestos**: [Lista con tecnologías detectadas]
-- **Puertos Sensibles Abiertos**: [SSH, RDP, bases de datos, etc.]
-- **Subdominios de Alto Valor**: [admin, api, dev, staging, etc.]
-- **Tecnologías Vulnerables**: [Versiones desactualizadas identificadas]
-
-### 📋 Recomendaciones Tácticas
-#### 🔴 Acciones Inmediatas (0-24h)
-```bash
-# Comandos específicos para investigación inmediata
-[comandos nmap, ffuf, curl específicos]
-```
-
-#### 🟡 Investigación Adicional (1-7 días)
-- **Fuzzing Avanzado**: [Directorios y parámetros específicos a probar]
-- **Análisis Manual**: [Endpoints específicos para revisión manual]
-- **Técnicas de Bypass**: [WAF, autenticación, etc.]
-
-#### 🟢 Monitoreo Continuo
-- **Subdominios a Vigilar**: [Lista para monitoreo]
-- **Cambios de Configuración**: [Servicios a supervisar]
-
-CRITERIOS DE ANÁLISIS AVANZADOS:
-- Calcula puntuación de riesgo basada en: severidad × exposición × facilidad de explotación
-- Prioriza vectores con mayor potencial de impacto en el negocio
-- Proporciona comandos bash específicos y listos para ejecutar
-- Identifica patrones de configuración insegura y malas prácticas
-- Sugiere técnicas de post-explotación cuando sea apropiado
-- Mapea hallazgos a frameworks como OWASP Top 10 y MITRE ATT&CK
-
-Si no encuentras vulnerabilidades críticas, enfócate en vectores de ataque potenciales y
-oportunidades de investigación que podrían revelar vulnerabilidades adicionales.
+[Resumen de hallazgos clave: nº de hosts, servicios críticos, conclusión del riesgo.]
+---
+### ⚔️ Análisis de Vectores de Ataque
+| Vector Potencial | Descripción del Riesgo | Activos Afectados |
+| --- | --- | --- |
+| [Ej: Exposición de Panel Admin] | [Ej: El subdominio `admin.example.com` podría ser
+vulnerable a fuerza bruta.] | `admin.example.com` |
+---
+### 📋 Recomendaciones Tácticas (Siguientes Pasos)
+**Prioridad Alta:**
+* **Investigar Servicio [Nombre]:** El servicio en `[host:puerto]` parece ser [tecnología].
+Recomiendo un escaneo profundo con:
+    ```bash
+    nmap -sV -sC -p[puerto] --scripts=vuln [host]
+    ```
 """
 
         # Construir el prompt completo
@@ -156,11 +123,11 @@ def get_gemini_alert(api_key: str, nuclei_finding: str) -> Optional[str]:
         # Seleccionar el modelo optimizado para velocidad y costo
         model = genai.GenerativeModel("gemini-1.5-flash-latest")
 
-        # Prompt específico para alertas concisas
+        # Prompt específico para alertas concisas según especificaciones v2.1
         alert_prompt = """
 Actúa como un sistema de alerta de ciberseguridad. Analiza el siguiente hallazgo de Nuclei y
-genera una alerta en una sola frase (máximo 280 caracteres) que describa el riesgo crítico y
-el activo afectado. Formato: [Severidad] - [Tipo de Vulnerabilidad] en [Host].
+genera una alerta en una sola frase (máximo 280 caracteres).
+Formato: [Severidad] - [Tipo de Vulnerabilidad] en [Host].
 """
 
         # Construir el prompt completo
